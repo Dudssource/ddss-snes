@@ -1,0 +1,10 @@
+[package]
+name = "ddss-snes"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "ddss_snes"
+path = "src/lib.rs"
+
+[dependencies]
