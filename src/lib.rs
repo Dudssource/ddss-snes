@@ -1,2 +1,2 @@
-mod bus;
-pub use crate::bus::memory;
+mod cpu;
+pub use crate::cpu::bits;

@@ -1,6 +1,6 @@
-use ddss_snes::memory::Memory;
+use ddss_snes::bits::Word;
 
 fn main() {
-    let mem  = Memory{};
-    println!("{mem:?}")
+    let w = Word::new(20, 20);
+    println!("{w:?}")
 }
