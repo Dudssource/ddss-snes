@@ -18,13 +18,34 @@ pub struct Cpu {
 impl Cpu {
     pub fn decode_and_execute(&mut self, bus: &mut Bus, opcode: u8) {
         match opcode {
-            0xA9 => self.lda(),
+            0xA1 => self.lda(opcode),
+            0xA9 => self.lda(opcode),
         }
     }
 
-    fn lda(&mut self) {
-        self.pc = self.pc+1
-        self.reg_a = bus.read_byte(self.pc);
+    pub fn start(&mut self, bus: &mut Bus) {
+        loop {
+            let opcode = bus.read_byte(c.pc);
+            self.decode_and_execute(&mut bus, opcode);
+            self.pc += 1;
+        }
+    }
+
+    pub fn offset(self, bus: Bus, addr: u16, mode: AddressMode) -> u16 {
+        let value = match addr {
+            ZeroPageIndirectIndexedY => {
+                self.read_byte(self.read_byte(0x100 + addr) | (self.reg_y << 4))
+            }
+        };
+    }
+
+    fn lda(&mut self, opcode: u8) {
+        self.reg_a = match opcode {
+            0xA1 => self.offset(bus.read_byte(self.pc + 1), bus.ZeroPageIndirectIndexedY),
+            0xA9 => self.read_byte(self.pc + 1),
+            () => 0,
+        };
+
         if self.reg_a == 0 {
             self.reg_p |= S_RESULT_ZERO;
         }

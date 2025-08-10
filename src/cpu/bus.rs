@@ -30,16 +30,14 @@ impl Bus {
     }
 
     pub fn write_byte(&mut self, val: u8, addr: u16) {
-        match addr {}
+        match addr {
+            () => self.work_ram[addr] = val,
+        }
     }
 
-    pub fn read_byte(&mut self, addr: u16) -> u8{
-        match addr {}
-    }
-
-    pub fn offset(self, addr: u16, mode: AddressMode) -> u16 {
-        let value = match addr {
-            
-        };
+    pub fn read_byte(&mut self, addr: u16) -> u8 {
+        match addr {
+            () => self.work_ram[addr],
+        }
     }
 }
