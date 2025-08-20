@@ -1,2 +1,1 @@
-mod cpu;
-pub use crate::cpu::bits;
+pub mod cpu;

@@ -1,6 +1,7 @@
-use ddss_snes::bits::Word;
+use ddss_snes::cpu::alu::Cpu;
+use ddss_snes::cpu::bus::Bus;
 
 fn main() {
-    let w = Word::new(20, 20);
-    println!("{w:?}")
+    let bus = &mut Bus::new();
+    let cpu = Cpu::new(bus);
 }
