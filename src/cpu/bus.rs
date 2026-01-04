@@ -18,13 +18,13 @@ impl Bus {
         }
     }
 
-    pub fn read_byte(&self, addr: u16) -> u8 {
+    pub fn read_dword(&self, addr: u32) -> u32 {
+        self.read_byte(addr) as u32
+    }
+
+    pub fn read_byte(&self, addr: u32) -> u8 {
         match addr {
             _ => self.work_ram[addr as usize],
         }
-    }
-
-    pub fn r16(&self, addr: u16) -> u16 {
-        (self.read_byte(addr) as u16 | ((self.read_byte(addr + 1) as u16) << 8)) as u16
     }
 }

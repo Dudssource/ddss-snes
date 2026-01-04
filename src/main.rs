@@ -3,5 +3,6 @@ use ddss_snes::cpu::bus::Bus;
 
 fn main() {
     let bus = &mut Bus::new();
-    let cpu = Cpu::new(bus);
+    let cpu = &mut Cpu::new();
+    cpu.start(bus);
 }
