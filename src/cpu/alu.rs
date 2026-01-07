@@ -2,12 +2,12 @@ use core::panic;
 
 use crate::cpu::bus::Bus;
 
-const S_CARRY: u8 = 0x1;
+const S_CARRY: u32 = 0x1;
 const S_RESULT_ZERO: u32 = 0x1 << 1;
 const S_IRQ_DISABLE: u8 = 0x1 << 2;
 const S_DECIMAL_MODE: u8 = 0x1 << 3;
 const S_BREAK_INSTRUCTION: u8 = 0x1 << 4;
-const S_OVERFLOW: u8 = 0x1 << 6;
+const S_OVERFLOW: u32 = 0x1 << 6;
 const S_NEGATIVE: u32 = 0x1 << 7;
 
 pub struct Cpu {
@@ -78,8 +78,14 @@ impl Cpu {
 
     fn decode_and_execute(&mut self, opcode: u8) {
         match opcode {
+            // LDA
             0xA9 | 0xA5 | 0xB5 | 0xAD | 0xBD | 0xB9 | 0xA1 | 0xB1 | 0xAF | 0xBF | 0xB2 | 0xA7
             | 0xB7 | 0xA3 | 0xB3 => self.lda(opcode),
+
+            // BRANCH
+            0x10 | 0x30 | 0x50 | 0x70 | 0x90 | 0xB0 | 0xD0 | 0xF0 | 0x80 => self.branch(opcode),
+
+            // ERROR
             _ => panic!("invalid opcode {}", opcode),
         }
     }
@@ -305,6 +311,8 @@ impl Cpu {
     fn nz(&mut self, value: u32) {
         if value == 0 {
             self.reg_p |= S_RESULT_ZERO;
+        } else {
+            self.reg_p &= !S_RESULT_ZERO;
         }
 
         // 8 or 16 bit (6502 emulation on/off)
@@ -312,6 +320,57 @@ impl Cpu {
             self.reg_p |= S_NEGATIVE;
         } else {
             self.reg_p &= !S_NEGATIVE;
+        }
+    }
+
+    fn branch(&mut self, opcode: u8) {
+        let taken: Result<bool, String> = match opcode {
+            // BNE
+            0xD0 => Ok((self.reg_p & S_RESULT_ZERO) == 0),
+
+            // BEQ
+            0xF0 => Ok((self.reg_p & S_RESULT_ZERO) > 0),
+
+            // BMI
+            0x30 => Ok((self.reg_p & S_NEGATIVE) > 0),
+
+            // BPL
+            0x10 => Ok((self.reg_p & S_NEGATIVE) == 0),
+
+            // BCS
+            0xB0 => Ok((self.reg_p & S_CARRY) > 0),
+
+            // BCC
+            0x90 => Ok((self.reg_p & S_CARRY) == 0),
+
+            // BVC
+            0x50 => Ok((self.reg_p & S_OVERFLOW) == 0),
+
+            // BVS
+            0x70 => Ok((self.reg_p & S_OVERFLOW) > 0),
+
+            // BRA
+            0x80 => Ok(true),
+
+            _ => Err(format!("branch : unknown opcode {}", opcode)),
+        };
+
+        match taken {
+            Ok(taken) => {
+                self.pc += 1;
+                let offset = self.bus.read_byte(self.pbr_pc());
+
+                // TODO: Add 1 more cycle if branch is taken
+                if taken {
+                    // if signed, flip all bits and add 1 to get real value, then subtract from PC
+                    // this is because offset is a one byte signed two's-complement
+                    self.pc = match (offset & 0x80) > 0 {
+                        true => self.pc - ((!offset) + 1) as u32,
+                        false => self.pc + offset as u32,
+                    };
+                }
+            }
+            Err(msg) => panic!("error : {}", msg),
         }
     }
 
