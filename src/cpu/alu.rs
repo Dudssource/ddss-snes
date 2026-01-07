@@ -1,5 +1,3 @@
-use core::panic;
-
 use crate::cpu::bus::Bus;
 
 const S_CARRY: u32 = 0x1;
