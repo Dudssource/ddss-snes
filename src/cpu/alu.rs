@@ -21,6 +21,7 @@ pub struct Cpu {
     reg_db: u32,
     sp: u32,
     pc: u32,
+    emulation: bool,
 }
 
 #[derive(Debug)]
@@ -33,6 +34,13 @@ pub enum AddressMode {
     ZeroPageX,
     ZeroPageDirectIndirectIndexedY,
     ZeroPageDirectIndexedIndirectX,
+    AbsoluteLong,
+    AbsoluteLongIndexedX,
+    DirectIndirect,
+    DirectIndirectLong,
+    ZeroPageDirectIndirectIndexedLong,
+    StackRelative,
+    StackRelativeIndirectIndexedY,
 }
 
 impl Cpu {
@@ -48,6 +56,7 @@ impl Cpu {
             pc: 0x0,
             reg_pb: 0x0,
             reg_db: 0x0,
+            emulation: false,
         }
     }
 
@@ -69,7 +78,8 @@ impl Cpu {
 
     fn decode_and_execute(&mut self, opcode: u8) {
         match opcode {
-            0xA1 | 0xA3 | 0xA5 | 0xA9 | 0xAD | 0xB1 | 0xB5 | 0xBD | 0xB9 => self.lda(opcode),
+            0xA9 | 0xA5 | 0xB5 | 0xAD | 0xBD | 0xB9 | 0xA1 | 0xB1 | 0xAF | 0xBF | 0xB2 | 0xA7
+            | 0xB7 | 0xA3 | 0xB3 => self.lda(opcode),
             _ => panic!("invalid opcode {}", opcode),
         }
     }
@@ -182,6 +192,113 @@ impl Cpu {
 
                 Ok(Self::make_word(data_lo, data_hi))
             }
+
+            AddressMode::AbsoluteLong => {
+                self.pc += 1;
+                let addr_lo = self.bus.read_dword(self.pbr_pc());
+
+                self.pc += 1;
+                let addr_hi = self.bus.read_dword(self.pbr_pc());
+
+                self.pc += 1;
+                let addr_bank = self.bus.read_dword(self.pbr_pc());
+
+                let addr = Self::make_word(addr_lo, addr_hi);
+
+                let data_lo = self.bus.read_dword((addr_bank << 16) | addr);
+                let data_hi = self.bus.read_dword((addr_bank << 16) | (addr + 1));
+
+                Ok(Self::make_word(data_lo, data_hi))
+            }
+
+            AddressMode::AbsoluteLongIndexedX => {
+                self.pc += 1;
+                let addr_lo = self.bus.read_dword(self.pbr_pc());
+
+                self.pc += 1;
+                let addr_hi = self.bus.read_dword(self.pbr_pc());
+
+                self.pc += 1;
+                let addr_bank = self.bus.read_dword(self.pbr_pc());
+
+                let addr = Self::make_word(addr_lo, addr_hi) + self.reg_x;
+
+                let data_lo = self.bus.read_dword((addr_bank << 16) | addr);
+                let data_hi = self.bus.read_dword((addr_bank << 16) | (addr + 1));
+
+                Ok(Self::make_word(data_lo, data_hi))
+            }
+
+            AddressMode::DirectIndirect => {
+                self.pc += 1;
+                let direct_offset = self.bus.read_dword(self.pbr_pc());
+
+                let addr_lo = self.bus.read_dword(self.reg_d + direct_offset);
+                let addr_hi = self.bus.read_dword(self.reg_d + direct_offset + 1);
+                let addr = Self::make_word(addr_lo, addr_hi);
+
+                let data_lo = self.bus.read_dword((self.reg_db << 16) | addr);
+                let data_hi = self.bus.read_dword((self.reg_db << 16) | (addr + 1));
+
+                Ok(Self::make_word(data_lo, data_hi))
+            }
+
+            AddressMode::DirectIndirectLong => {
+                self.pc += 1;
+                let direct_offset = self.bus.read_dword(self.pbr_pc());
+
+                let addr_lo = self.bus.read_dword(self.reg_d + direct_offset);
+                let addr_hi = self.bus.read_dword(self.reg_d + direct_offset + 1);
+                let addr_bank = self.bus.read_dword(self.reg_d + direct_offset + 2);
+
+                let addr = Self::make_word(addr_lo, addr_hi);
+
+                let data_lo = self.bus.read_dword((addr_bank << 16) | addr);
+                let data_hi = self.bus.read_dword((addr_bank << 16) | (addr + 1));
+
+                Ok(Self::make_word(data_lo, data_hi))
+            }
+
+            AddressMode::ZeroPageDirectIndirectIndexedLong => {
+                self.pc += 1;
+                let direct_offset = self.bus.read_dword(self.pbr_pc());
+
+                let addr_lo = self.bus.read_dword(self.reg_d + direct_offset);
+                let addr_hi = self.bus.read_dword(self.reg_d + direct_offset + 1);
+                let addr_bank = self.bus.read_dword(self.reg_d + direct_offset + 2);
+
+                let addr = Self::make_word(addr_lo, addr_hi) + self.reg_y;
+
+                let data_lo = self.bus.read_dword((addr_bank << 16) | addr);
+                let data_hi = self.bus.read_dword((addr_bank << 16) | (addr + 1));
+
+                Ok(Self::make_word(data_lo, data_hi))
+            }
+
+            AddressMode::StackRelative => {
+                self.pc += 1;
+                let stack_offset = self.bus.read_dword(self.pbr_pc());
+
+                let data_lo = self.bus.read_dword(self.sp + stack_offset);
+                let data_hi = self.bus.read_dword(self.sp + stack_offset + 1);
+
+                Ok(Self::make_word(data_lo, data_hi))
+            }
+
+            AddressMode::StackRelativeIndirectIndexedY => {
+                self.pc += 1;
+                let stack_offset = self.bus.read_dword(self.pbr_pc());
+
+                let addr_lo = self.bus.read_dword(self.sp + stack_offset);
+                let addr_hi = self.bus.read_dword(self.sp + stack_offset + 1);
+
+                let addr = Self::make_word(addr_lo, addr_hi) + self.reg_y;
+
+                let data_lo = self.bus.read_dword(addr);
+                let data_hi = self.bus.read_dword(addr + 1);
+
+                Ok(Self::make_word(data_lo, data_hi))
+            }
         }
     }
 
@@ -189,7 +306,9 @@ impl Cpu {
         if value == 0 {
             self.reg_p |= S_RESULT_ZERO;
         }
-        if value & 0x80 > 0 {
+
+        // 8 or 16 bit (6502 emulation on/off)
+        if (self.emulation && value & 0x80 > 0) || (!self.emulation && value & 0x8000 > 0) {
             self.reg_p |= S_NEGATIVE;
         } else {
             self.reg_p &= !S_NEGATIVE;
@@ -200,12 +319,20 @@ impl Cpu {
         let result = match opcode {
             0xA9 => self.fetch(AddressMode::Immediate),
             0xA5 => self.fetch(AddressMode::ZeroPage),
-            0xAD => self.fetch(AddressMode::Absolute),
             0xB5 => self.fetch(AddressMode::ZeroPageX),
-            0xA1 => self.fetch(AddressMode::ZeroPageDirectIndexedIndirectX),
-            0xB1 => self.fetch(AddressMode::ZeroPageDirectIndirectIndexedY),
+            0xAD => self.fetch(AddressMode::Absolute),
             0xBD => self.fetch(AddressMode::AbsoluteIndexedX),
             0xB9 => self.fetch(AddressMode::AbsoluteIndexedY),
+            0xA1 => self.fetch(AddressMode::ZeroPageDirectIndexedIndirectX),
+            0xB1 => self.fetch(AddressMode::ZeroPageDirectIndirectIndexedY),
+            0xAF => self.fetch(AddressMode::AbsoluteLong),
+            0xBF => self.fetch(AddressMode::AbsoluteLongIndexedX),
+            0xB2 => self.fetch(AddressMode::DirectIndirect),
+            0xA7 => self.fetch(AddressMode::DirectIndirectLong),
+            0xB7 => self.fetch(AddressMode::ZeroPageDirectIndirectIndexedLong),
+            0xA3 => self.fetch(AddressMode::StackRelative),
+            0xB3 => self.fetch(AddressMode::StackRelativeIndirectIndexedY),
+
             _ => Err(format!("invalid opcode {}", opcode)),
         };
 

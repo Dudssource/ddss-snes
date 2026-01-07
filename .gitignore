@@ -1,1 +1,3 @@
 /target
+integration-tests/*.inc
+integration-tests/*.txt
