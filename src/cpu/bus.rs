@@ -12,7 +12,7 @@ impl Bus {
         }
     }
 
-    pub fn write_byte(&mut self, val: u8, addr: u16) {
+    pub fn write_byte(&mut self, val: u8, addr: u32) {
         match addr {
             _ => self.work_ram[addr as usize] = val,
         }
