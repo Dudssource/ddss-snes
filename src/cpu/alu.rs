@@ -1,4 +1,4 @@
-use crate::cpu::bus::Bus;
+use crate::cpu::{bits::Word, bus::Bus};
 
 const S_CARRY: u8 = 0x1;
 const S_RESULT_ZERO: u8 = 0x1 << 1;
@@ -10,7 +10,7 @@ const S_NEGATIVE: u8 = 0x1 << 7;
 
 pub struct Cpu {
     bus: Box<Bus>,
-    reg_a: u16,
+    reg_a: Word,
     reg_x: u16,
     reg_y: u16,
     reg_p: u8,
@@ -47,7 +47,7 @@ impl Cpu {
         Self {
             bus: bus,
             sp: 0xFF,
-            reg_a: 0x0,
+            reg_a: Word::new(0, 0),
             reg_x: 0x0,
             reg_y: 0x0,
             reg_p: 0x0,
@@ -77,6 +77,10 @@ impl Cpu {
 
     fn decode_and_execute(&mut self, opcode: u8) {
         match opcode {
+            // STA Store accumulator in memory
+            0x85 | 0x95 | 0x8D | 0x9D | 0x99 | 0x81 | 0x91 | 0x8F | 0x9F | 0x92 | 0x87 | 0x97
+            | 0x83 | 0x93 => self.op_sta(opcode),
+
             // LDA Load Accumulator with Memory
             0xA9 | 0xA5 | 0xB5 | 0xAD | 0xBD | 0xB9 | 0xA1 | 0xB1 | 0xAF | 0xBF | 0xB2 | 0xA7
             | 0xB7 | 0xA3 | 0xB3 => self.op_lda(opcode),
@@ -114,6 +118,27 @@ impl Cpu {
 
             // SEP Set Processor Status Bits
             0xE2 => self.op_sep(),
+
+            // PHA Push accumulator on stack
+            0x48 => self.op_pha(),
+
+            // PHB Push Data Bank Register on Stack
+            0x8B => self.op_phb(),
+
+            // PHD Push Direct Register on Stack
+            0x0B => self.op_phd(),
+
+            // PHK Push Program Bank Register on Stack
+            0x4B => self.op_phk(),
+
+            // PHP Push processor status on stack
+            0x08 => self.op_php(),
+
+            // PHX Push Index X on Stack
+            0xDA => self.op_phx(),
+
+            // PHY Push Index Y on Stack
+            0x5A => self.op_phy(),
 
             // ERROR
             _ => panic!("invalid opcode {}", opcode),
@@ -367,6 +392,276 @@ impl Cpu {
         }
     }
 
+    fn store(&mut self, mode: AddressMode, value: &Word) {
+        match mode {
+            AddressMode::Absolute => {
+                self.pc += 1;
+                let addr_lo = self.bus.read_byte(self.pbr_pc());
+
+                self.pc += 1;
+                let addr_hi = self.bus.read_byte(self.pbr_pc());
+
+                let addr = Self::make_word(addr_lo, addr_hi) as u32;
+
+                // data_lo
+                self.bus
+                    .write_byte(((self.reg_db as u32) << 16) | addr, value.lo());
+
+                // data_hi
+                self.bus
+                    .write_byte(((self.reg_db as u32) << 16) | addr + 1, value.hi());
+            }
+
+            AddressMode::AbsoluteIndexedX => {
+                self.pc += 1;
+                let addr_lo = self.bus.read_byte(self.pbr_pc());
+
+                self.pc += 1;
+                let addr_hi = self.bus.read_byte(self.pbr_pc());
+
+                let addr = (Self::make_word(addr_lo, addr_hi) + self.reg_x) as u32;
+
+                // data_lo
+                self.bus
+                    .write_byte(((self.reg_db as u32) << 16) | addr, value.lo());
+
+                // data_hi
+                self.bus
+                    .write_byte(((self.reg_db as u32) << 16) | (addr + 1), value.hi());
+            }
+
+            AddressMode::AbsoluteIndexedY => {
+                self.pc += 1;
+                let addr_lo = self.bus.read_byte(self.pbr_pc());
+
+                self.pc += 1;
+                let addr_hi = self.bus.read_byte(self.pbr_pc());
+
+                let addr = (Self::make_word(addr_lo, addr_hi) + self.reg_y) as u32;
+
+                // data_lo
+                self.bus
+                    .write_byte(((self.reg_db as u32) << 16) | addr, value.lo());
+
+                // data_hi
+                self.bus
+                    .write_byte(((self.reg_db as u32) << 16) | (addr + 1), value.hi());
+            }
+
+            AddressMode::Immediate => {
+                // data_lo
+                self.pc += 1;
+                self.bus.write_byte(self.pbr_pc(), value.lo());
+
+                // data_hi
+                self.pc += 1;
+                self.bus.write_byte(self.pbr_pc(), value.hi());
+            }
+
+            AddressMode::ZeroPage => {
+                self.pc += 1;
+                let direct_offset = self.bus.read_byte(self.pbr_pc()) as u32;
+
+                // data_lo
+                self.bus
+                    .write_byte(self.reg_d as u32 + direct_offset, value.lo());
+
+                // data_hi
+                self.bus
+                    .write_byte(self.reg_d as u32 + direct_offset + 1, value.hi());
+            }
+
+            AddressMode::ZeroPageX => {
+                self.pc += 1;
+                let direct_offset = self.bus.read_byte(self.pbr_pc()) as u32;
+
+                // data_lo
+                self.bus
+                    .write_byte((self.reg_d + self.reg_x) as u32 + direct_offset, value.lo());
+
+                // data_hi
+                self.bus.write_byte(
+                    (self.reg_d + self.reg_x) as u32 + direct_offset + 1,
+                    value.hi(),
+                );
+            }
+
+            AddressMode::ZeroPageY => {
+                self.pc += 1;
+                let direct_offset = self.bus.read_byte(self.pbr_pc()) as u32;
+
+                // data_lo
+                self.bus
+                    .write_byte((self.reg_d + self.reg_y) as u32 + direct_offset, value.lo());
+
+                // data_hi
+                self.bus.write_byte(
+                    (self.reg_d + self.reg_y) as u32 + direct_offset + 1,
+                    value.hi(),
+                );
+            }
+
+            AddressMode::ZeroPageDirectIndirectIndexedY => {
+                self.pc += 1;
+                let direct_offset = self.bus.read_dword(self.pbr_pc());
+
+                let addr_lo = self.bus.read_byte(self.reg_d as u32 + direct_offset);
+                let addr_hi = self.bus.read_byte(self.reg_d as u32 + direct_offset + 1);
+                let addr = (Self::make_word(addr_lo, addr_hi) + self.reg_y) as u32;
+
+                // data_lo
+                self.bus
+                    .write_byte(((self.reg_db as u32) << 16) | addr, value.lo());
+
+                // data_hi
+                self.bus
+                    .write_byte(((self.reg_db as u32) << 16) | (addr + 1), value.hi());
+            }
+
+            AddressMode::ZeroPageDirectIndexedIndirectX => {
+                self.pc += 1;
+                let direct_offset = self.bus.read_dword(self.pbr_pc());
+
+                let addr_lo = self
+                    .bus
+                    .read_byte((self.reg_d + self.reg_x) as u32 + direct_offset);
+                let addr_hi = self
+                    .bus
+                    .read_byte((self.reg_d + self.reg_x) as u32 + direct_offset + 1);
+
+                let addr = Self::make_word(addr_lo, addr_hi) as u32;
+
+                // data_lo
+                self.bus
+                    .write_byte(((self.reg_db as u32) << 16) | addr, value.lo());
+
+                // data_hi
+                self.bus
+                    .write_byte(((self.reg_db as u32) << 16) | (addr + 1), value.hi());
+            }
+
+            AddressMode::AbsoluteLong => {
+                self.pc += 1;
+                let addr_lo = self.bus.read_byte(self.pbr_pc());
+
+                self.pc += 1;
+                let addr_hi = self.bus.read_byte(self.pbr_pc());
+
+                self.pc += 1;
+                let addr_bank = self.bus.read_dword(self.pbr_pc());
+
+                let addr = Self::make_word(addr_lo, addr_hi) as u32;
+
+                // data_lo
+                self.bus.write_byte((addr_bank << 16) | addr, value.lo());
+
+                // data_hi
+                self.bus
+                    .write_byte((addr_bank << 16) | (addr + 1), value.hi());
+            }
+
+            AddressMode::AbsoluteLongIndexedX => {
+                self.pc += 1;
+                let addr_lo = self.bus.read_byte(self.pbr_pc());
+
+                self.pc += 1;
+                let addr_hi = self.bus.read_byte(self.pbr_pc());
+
+                self.pc += 1;
+                let addr_bank = self.bus.read_dword(self.pbr_pc());
+
+                let addr = (Self::make_word(addr_lo, addr_hi) + self.reg_x) as u32;
+
+                // data_lo
+                self.bus.write_byte((addr_bank << 16) | addr, value.lo());
+
+                // data_hi
+                self.bus
+                    .write_byte((addr_bank << 16) | (addr + 1), value.hi());
+            }
+
+            AddressMode::DirectIndirect => {
+                self.pc += 1;
+                let direct_offset = self.bus.read_dword(self.pbr_pc());
+
+                let addr_lo = self.bus.read_byte(self.reg_d as u32 + direct_offset);
+                let addr_hi = self.bus.read_byte(self.reg_d as u32 + direct_offset + 1);
+                let addr = Self::make_word(addr_lo, addr_hi) as u32;
+
+                // data_lo
+                self.bus
+                    .write_byte(((self.reg_db as u32) << 16) | addr, value.lo());
+
+                // data_hi
+                self.bus
+                    .write_byte(((self.reg_db as u32) << 16) | (addr + 1), value.hi());
+            }
+
+            AddressMode::DirectIndirectLong => {
+                self.pc += 1;
+                let direct_offset = self.bus.read_dword(self.pbr_pc());
+
+                let addr_lo = self.bus.read_byte(self.reg_d as u32 + direct_offset);
+                let addr_hi = self.bus.read_byte(self.reg_d as u32 + direct_offset + 1);
+                let addr_bank = self.bus.read_dword(self.reg_d as u32 + direct_offset + 2);
+
+                let addr = Self::make_word(addr_lo, addr_hi) as u32;
+
+                // data_lo
+                self.bus.write_byte((addr_bank << 16) | addr, value.lo());
+
+                // data_hi
+                self.bus
+                    .write_byte((addr_bank << 16) | (addr + 1), value.hi());
+            }
+
+            AddressMode::ZeroPageDirectIndirectIndexedLong => {
+                self.pc += 1;
+                let direct_offset = self.bus.read_dword(self.pbr_pc());
+
+                let addr_lo = self.bus.read_byte(self.reg_d as u32 + direct_offset);
+                let addr_hi = self.bus.read_byte(self.reg_d as u32 + direct_offset + 1);
+                let addr_bank = self.bus.read_dword(self.reg_d as u32 + direct_offset + 2);
+
+                let addr = (Self::make_word(addr_lo, addr_hi) + self.reg_y) as u32;
+
+                // data_lo
+                self.bus.write_byte((addr_bank << 16) | addr, value.lo());
+
+                // data_hi
+                self.bus
+                    .write_byte((addr_bank << 16) | (addr + 1), value.hi());
+            }
+
+            AddressMode::StackRelative => {
+                self.pc += 1;
+                let stack_offset = self.bus.read_dword(self.pbr_pc());
+
+                // data_lo
+                self.bus.write_byte(self.sp + stack_offset, value.lo());
+
+                // data_hi
+                self.bus.write_byte(self.sp + stack_offset + 1, value.hi());
+            }
+
+            AddressMode::StackRelativeIndirectIndexedY => {
+                self.pc += 1;
+                let stack_offset = self.bus.read_dword(self.pbr_pc());
+
+                let addr_lo = self.bus.read_byte(self.sp + stack_offset);
+                let addr_hi = self.bus.read_byte(self.sp + stack_offset + 1);
+
+                let addr = (Self::make_word(addr_lo, addr_hi) + self.reg_y) as u32;
+
+                // data_lo
+                self.bus.write_byte(addr, value.lo());
+
+                // data_hi
+                self.bus.write_byte(addr + 1, value.hi());
+            }
+        }
+    }
+
     fn flag_nz(&mut self, value: u16) {
         if value == 0 {
             self.reg_p |= S_RESULT_ZERO;
@@ -442,7 +737,7 @@ impl Cpu {
     }
 
     fn op_lda(&mut self, opcode: u8) {
-        self.reg_a = match opcode {
+        self.reg_a.data = match opcode {
             0xA9 => self.fetch(AddressMode::Immediate),
             0xA5 => self.fetch(AddressMode::ZeroPage),
             0xB5 => self.fetch(AddressMode::ZeroPageX),
@@ -461,7 +756,28 @@ impl Cpu {
             _ => panic!("invalid opcode {}", opcode),
         };
 
-        self.flag_nz(self.reg_a);
+        self.flag_nz(self.reg_a.data);
+    }
+
+    fn op_sta(&mut self, opcode: u8) {
+        let value = &self.reg_a.clone();
+        match opcode {
+            0x85 => self.store(AddressMode::ZeroPage, value),
+            0x95 => self.store(AddressMode::ZeroPageX, value),
+            0x8D => self.store(AddressMode::Absolute, value),
+            0x9D => self.store(AddressMode::AbsoluteIndexedX, value),
+            0x99 => self.store(AddressMode::AbsoluteIndexedY, value),
+            0x81 => self.store(AddressMode::ZeroPageDirectIndexedIndirectX, value),
+            0x91 => self.store(AddressMode::ZeroPageDirectIndirectIndexedY, value),
+            0x8F => self.store(AddressMode::AbsoluteLong, value),
+            0x9F => self.store(AddressMode::AbsoluteLongIndexedX, value),
+            0x92 => self.store(AddressMode::DirectIndirect, value),
+            0x87 => self.store(AddressMode::DirectIndirectLong, value),
+            0x97 => self.store(AddressMode::ZeroPageDirectIndirectIndexedLong, value),
+            0x83 => self.store(AddressMode::StackRelative, value),
+            0x93 => self.store(AddressMode::StackRelativeIndirectIndexedY, value),
+            _ => panic!("invalid opcode {}", opcode),
+        };
     }
 
     fn op_ldy(&mut self, opcode: u8) {
@@ -500,7 +816,7 @@ impl Cpu {
         let pch = self.bus.read_byte(self.pbr_pc()) as u16;
 
         // push PBR
-        self.bus.write_byte(self.reg_pb, self.sp);
+        self.bus.write_byte(self.sp, self.reg_pb);
         self.sp -= 1;
 
         // New PBR
@@ -509,11 +825,11 @@ impl Cpu {
 
         // push PC High
         self.bus
-            .write_byte(((self.pc & 0xFF00) >> 8) as u8, self.sp);
+            .write_byte(self.sp, ((self.pc & 0xFF00) >> 8) as u8);
         self.sp -= 1;
 
         // push PC Low
-        self.bus.write_byte((self.pc & 0xFF) as u8, self.sp);
+        self.bus.write_byte(self.sp, (self.pc & 0xFF) as u8);
         self.sp -= 1;
 
         // Save new PBR (bank)
@@ -534,11 +850,11 @@ impl Cpu {
 
         // push PC High
         self.bus
-            .write_byte(((self.pc & 0xFF00) >> 8) as u8, self.sp);
+            .write_byte(self.sp, ((self.pc & 0xFF00) >> 8) as u8);
         self.sp -= 1;
 
         // push PC Low
-        self.bus.write_byte((self.pc & 0xFF) as u8, self.sp);
+        self.bus.write_byte(self.sp, (self.pc & 0xFF) as u8);
         self.sp -= 1;
 
         // Save new PC
@@ -612,10 +928,10 @@ impl Cpu {
         };
 
         // negative and zero
-        self.flag_nz(self.reg_a - operand);
+        self.flag_nz(self.reg_a.data - operand);
 
         // carry is clear when borrow is required; that is, if the register is less than the operand
-        self.flag_c(self.reg_a >= operand);
+        self.flag_c(self.reg_a.data >= operand);
     }
 
     fn op_jml(&mut self) {
@@ -636,5 +952,58 @@ impl Cpu {
 
         // Save new PC
         self.pc = (pch << 8) | pcl;
+    }
+
+    fn op_pha(&mut self) {
+        self.pc += 1;
+        self.bus.write_byte(self.sp, self.reg_a.hi());
+        self.sp -= 1;
+        self.bus.write_byte(self.sp, self.reg_a.lo());
+        self.sp -= 1;
+    }
+
+    fn op_phb(&mut self) {
+        self.pc += 1;
+        self.bus.write_byte(self.sp, self.reg_db);
+        self.sp -= 1;
+    }
+
+    fn op_phd(&mut self) {
+        let value = Word { data: self.reg_d };
+        self.pc += 1;
+        self.bus.write_byte(self.sp, value.hi());
+        self.sp -= 1;
+        self.bus.write_byte(self.sp, value.lo());
+        self.sp -= 1;
+    }
+
+    fn op_phk(&mut self) {
+        self.pc += 1;
+        self.bus.write_byte(self.sp, self.reg_pb);
+        self.sp -= 1;
+    }
+
+    fn op_php(&mut self) {
+        self.pc += 1;
+        self.bus.write_byte(self.sp, self.reg_p);
+        self.sp -= 1;
+    }
+
+    fn op_phx(&mut self) {
+        let value = Word { data: self.reg_x };
+        self.pc += 1;
+        self.bus.write_byte(self.sp, value.hi());
+        self.sp -= 1;
+        self.bus.write_byte(self.sp, value.lo());
+        self.sp -= 1;
+    }
+
+    fn op_phy(&mut self) {
+        let value = Word { data: self.reg_y };
+        self.pc += 1;
+        self.bus.write_byte(self.sp, value.hi());
+        self.sp -= 1;
+        self.bus.write_byte(self.sp, value.lo());
+        self.sp -= 1;
     }
 }
