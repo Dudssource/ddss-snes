@@ -16,4 +16,8 @@ impl Word {
     pub fn lo(&self) -> u8 {
         (self.data & 0xFFu16) as u8
     }
+
+    pub fn is_signed(emulation: &bool, value: &u16) -> bool {
+        (*emulation && value & 0x80 > 0) || (!*emulation && value & 0x8000 > 0)
+    }
 }

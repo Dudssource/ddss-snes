@@ -1,25 +1,25 @@
 use crate::cpu::{bits::Word, bus::Bus};
 
-const S_CARRY: u8 = 0x1;
-const S_RESULT_ZERO: u8 = 0x1 << 1;
-const S_IRQ_DISABLE: u8 = 0x1 << 2;
-const S_DECIMAL_MODE: u8 = 0x1 << 3;
-const S_BREAK_INSTRUCTION: u8 = 0x1 << 4;
-const S_OVERFLOW: u8 = 0x1 << 6;
-const S_NEGATIVE: u8 = 0x1 << 7;
+pub const S_CARRY: u8 = 0x1;
+pub const S_RESULT_ZERO: u8 = 0x1 << 1;
+pub const S_IRQ_DISABLE: u8 = 0x1 << 2;
+pub const S_DECIMAL_MODE: u8 = 0x1 << 3;
+pub const S_BREAK_INSTRUCTION: u8 = 0x1 << 4;
+pub const S_OVERFLOW: u8 = 0x1 << 6;
+pub const S_NEGATIVE: u8 = 0x1 << 7;
 
 pub struct Cpu {
-    bus: Box<Bus>,
-    reg_a: Word,
-    reg_x: u16,
-    reg_y: u16,
-    reg_p: u8,
+    pub bus: Box<Bus>,
+    pub reg_a: Word,
+    pub reg_x: u16,
+    pub reg_y: u16,
+    pub reg_p: u8,
     reg_d: u16,
-    reg_pb: u8,
+    pub reg_pb: u8,
     reg_db: u8,
-    sp: u32,
-    pc: u16,
-    emulation: bool,
+    pub sp: u32,
+    pub pc: u16,
+    pub emulation: bool,
 }
 
 #[derive(Debug)]
@@ -67,11 +67,11 @@ impl Cpu {
         }
     }
 
-    fn pbr_pc(&self) -> u32 {
+    pub fn pbr_pc(&self) -> u32 {
         ((self.reg_pb as u32) << 16) | self.pc as u32
     }
 
-    fn make_word(lo: u8, hi: u8) -> u16 {
+    pub fn make_word(lo: u8, hi: u8) -> u16 {
         ((hi as u16) << 8) | lo as u16
     }
 
@@ -102,7 +102,7 @@ impl Cpu {
             | 0xD7 | 0xC3 | 0xD3 => self.op_cmp(opcode),
 
             // BRANCH on
-            0x10 | 0x30 | 0x50 | 0x70 | 0x90 | 0xB0 | 0xD0 | 0xF0 | 0x80 => self.branch(opcode),
+            0x10 | 0x30 | 0x50 | 0x70 | 0x90 | 0xB0 | 0xD0 | 0xF0 | 0x80 => self.op_branch(opcode),
 
             // JSR Jump to new location saving return address
             0x20 => self.op_jsr(),
@@ -140,12 +140,20 @@ impl Cpu {
             // PHY Push Index Y on Stack
             0x5A => self.op_phy(),
 
+            // ADC Add memory to accumulator with carry
+            0x69 | 0x65 | 0x75 | 0x6D | 0x7D | 0x79 | 0x61 | 0x71 | 0x6F | 0x7F | 0x72 | 0x67
+            | 0x77 | 0x63 | 0x73 => self.op_adc(opcode),
+
+            // SBC Subtract memory from accumulator with borrow
+            0xE9 | 0xE5 | 0xF5 | 0xED | 0xFD | 0xF9 | 0xE1 | 0xF1 | 0xEF | 0xFF | 0xF2 | 0xE7
+            | 0xF7 | 0xE3 | 0xF3 => self.op_sbc(opcode),
+
             // ERROR
             _ => panic!("invalid opcode {}", opcode),
         }
     }
 
-    fn fetch(&mut self, mode: AddressMode) -> u16 {
+    pub fn fetch(&mut self, mode: AddressMode) -> u16 {
         match mode {
             AddressMode::Absolute => {
                 self.pc += 1;
@@ -198,6 +206,7 @@ impl Cpu {
 
             AddressMode::Immediate => {
                 self.pc += 1;
+                dbg!(self.pc);
                 let data_lo = self.bus.read_byte(self.pbr_pc());
 
                 self.pc += 1;
@@ -392,7 +401,7 @@ impl Cpu {
         }
     }
 
-    fn store(&mut self, mode: AddressMode, value: &Word) {
+    pub fn store(&mut self, mode: AddressMode, value: &Word) {
         match mode {
             AddressMode::Absolute => {
                 self.pc += 1;
@@ -662,7 +671,7 @@ impl Cpu {
         }
     }
 
-    fn flag_nz(&mut self, value: u16) {
+    pub fn flag_nz(&mut self, value: u16) {
         if value == 0 {
             self.reg_p |= S_RESULT_ZERO;
         } else {
@@ -670,195 +679,40 @@ impl Cpu {
         }
 
         // 8 or 16 bit (6502 emulation on/off)
-        if (self.emulation && value & 0x80 > 0) || (!self.emulation && value & 0x8000 > 0) {
+        if Word::is_signed(&self.emulation, &value) {
             self.reg_p |= S_NEGATIVE;
         } else {
             self.reg_p &= !S_NEGATIVE;
         }
     }
 
-    fn flag_c(&mut self, set: bool) {
+    pub fn check_overflow(&mut self, value: i32) {
+        let mut final_carry = value > 0xFFFF;
+        let penultimate_carry = value > 0x7FFF;
+        if value < 0 {
+            // borrow clears the flag
+            self.flag_c(false);
+            final_carry = false;
+        } else {
+            self.flag_c(final_carry);
+        }
+        self.flag_v(final_carry ^ penultimate_carry);
+    }
+
+    pub fn flag_v(&mut self, set: bool) {
+        if set {
+            self.reg_p |= S_OVERFLOW;
+        } else {
+            self.reg_p &= !(S_OVERFLOW);
+        }
+    }
+
+    pub fn flag_c(&mut self, set: bool) {
         if set {
             self.reg_p |= S_CARRY;
         } else {
             self.reg_p &= !(S_CARRY);
         }
-    }
-
-    fn branch(&mut self, opcode: u8) {
-        let taken: Result<bool, String> = match opcode {
-            // BNE
-            0xD0 => Ok((self.reg_p & S_RESULT_ZERO) == 0),
-
-            // BEQ
-            0xF0 => Ok((self.reg_p & S_RESULT_ZERO) > 0),
-
-            // BMI
-            0x30 => Ok((self.reg_p & S_NEGATIVE) > 0),
-
-            // BPL
-            0x10 => Ok((self.reg_p & S_NEGATIVE) == 0),
-
-            // BCS
-            0xB0 => Ok((self.reg_p & S_CARRY) > 0),
-
-            // BCC
-            0x90 => Ok((self.reg_p & S_CARRY) == 0),
-
-            // BVC
-            0x50 => Ok((self.reg_p & S_OVERFLOW) == 0),
-
-            // BVS
-            0x70 => Ok((self.reg_p & S_OVERFLOW) > 0),
-
-            // BRA
-            0x80 => Ok(true),
-
-            _ => Err(format!("branch : unknown opcode {}", opcode)),
-        };
-
-        match taken {
-            Ok(taken) => {
-                self.pc += 1;
-                let offset = self.bus.read_byte(self.pbr_pc());
-
-                // TODO: Add 1 more cycle if branch is taken
-                if taken {
-                    // if signed, flip all bits and add 1 to get real value, then subtract from PC
-                    // this is because offset is a one byte signed two's-complement
-                    self.pc = match (offset & 0x80) > 0 {
-                        true => self.pc - ((!offset) + 1) as u16,
-                        false => self.pc + offset as u16,
-                    };
-                }
-            }
-            Err(msg) => panic!("error : {}", msg),
-        }
-    }
-
-    fn op_lda(&mut self, opcode: u8) {
-        self.reg_a.data = match opcode {
-            0xA9 => self.fetch(AddressMode::Immediate),
-            0xA5 => self.fetch(AddressMode::ZeroPage),
-            0xB5 => self.fetch(AddressMode::ZeroPageX),
-            0xAD => self.fetch(AddressMode::Absolute),
-            0xBD => self.fetch(AddressMode::AbsoluteIndexedX),
-            0xB9 => self.fetch(AddressMode::AbsoluteIndexedY),
-            0xA1 => self.fetch(AddressMode::ZeroPageDirectIndexedIndirectX),
-            0xB1 => self.fetch(AddressMode::ZeroPageDirectIndirectIndexedY),
-            0xAF => self.fetch(AddressMode::AbsoluteLong),
-            0xBF => self.fetch(AddressMode::AbsoluteLongIndexedX),
-            0xB2 => self.fetch(AddressMode::DirectIndirect),
-            0xA7 => self.fetch(AddressMode::DirectIndirectLong),
-            0xB7 => self.fetch(AddressMode::ZeroPageDirectIndirectIndexedLong),
-            0xA3 => self.fetch(AddressMode::StackRelative),
-            0xB3 => self.fetch(AddressMode::StackRelativeIndirectIndexedY),
-            _ => panic!("invalid opcode {}", opcode),
-        };
-
-        self.flag_nz(self.reg_a.data);
-    }
-
-    fn op_sta(&mut self, opcode: u8) {
-        let value = &self.reg_a.clone();
-        match opcode {
-            0x85 => self.store(AddressMode::ZeroPage, value),
-            0x95 => self.store(AddressMode::ZeroPageX, value),
-            0x8D => self.store(AddressMode::Absolute, value),
-            0x9D => self.store(AddressMode::AbsoluteIndexedX, value),
-            0x99 => self.store(AddressMode::AbsoluteIndexedY, value),
-            0x81 => self.store(AddressMode::ZeroPageDirectIndexedIndirectX, value),
-            0x91 => self.store(AddressMode::ZeroPageDirectIndirectIndexedY, value),
-            0x8F => self.store(AddressMode::AbsoluteLong, value),
-            0x9F => self.store(AddressMode::AbsoluteLongIndexedX, value),
-            0x92 => self.store(AddressMode::DirectIndirect, value),
-            0x87 => self.store(AddressMode::DirectIndirectLong, value),
-            0x97 => self.store(AddressMode::ZeroPageDirectIndirectIndexedLong, value),
-            0x83 => self.store(AddressMode::StackRelative, value),
-            0x93 => self.store(AddressMode::StackRelativeIndirectIndexedY, value),
-            _ => panic!("invalid opcode {}", opcode),
-        };
-    }
-
-    fn op_ldy(&mut self, opcode: u8) {
-        self.reg_y = match opcode {
-            0xA0 => self.fetch(AddressMode::Immediate),
-            0xA4 => self.fetch(AddressMode::ZeroPage),
-            0xB4 => self.fetch(AddressMode::ZeroPageX),
-            0xAC => self.fetch(AddressMode::Absolute),
-            0xBC => self.fetch(AddressMode::AbsoluteIndexedX),
-            _ => panic!("invalid opcode {}", opcode),
-        };
-
-        self.flag_nz(self.reg_y);
-    }
-
-    fn op_ldx(&mut self, opcode: u8) {
-        self.reg_x = match opcode {
-            0xA2 => self.fetch(AddressMode::Immediate),
-            0xA6 => self.fetch(AddressMode::ZeroPage),
-            0xB6 => self.fetch(AddressMode::ZeroPageY),
-            0xAE => self.fetch(AddressMode::Absolute),
-            0xBE => self.fetch(AddressMode::AbsoluteIndexedY),
-            _ => panic!("invalid opcode {}", opcode),
-        };
-
-        self.flag_nz(self.reg_x);
-    }
-
-    fn op_jsl(&mut self) {
-        // New PC Low
-        self.pc += 1;
-        let pcl = self.bus.read_byte(self.pbr_pc()) as u16;
-
-        // New PC High
-        self.pc += 1;
-        let pch = self.bus.read_byte(self.pbr_pc()) as u16;
-
-        // push PBR
-        self.bus.write_byte(self.sp, self.reg_pb);
-        self.sp -= 1;
-
-        // New PBR
-        self.pc += 1;
-        let pbr = self.bus.read_byte(self.pbr_pc());
-
-        // push PC High
-        self.bus
-            .write_byte(self.sp, ((self.pc & 0xFF00) >> 8) as u8);
-        self.sp -= 1;
-
-        // push PC Low
-        self.bus.write_byte(self.sp, (self.pc & 0xFF) as u8);
-        self.sp -= 1;
-
-        // Save new PBR (bank)
-        self.reg_pb = pbr;
-
-        // Save new PC
-        self.pc = (pch << 8) | pcl;
-    }
-
-    fn op_jsr(&mut self) {
-        // New PC Low
-        self.pc += 1;
-        let pcl = self.bus.read_byte(self.pbr_pc());
-
-        // New PC High
-        self.pc += 1;
-        let pch = self.bus.read_byte(self.pbr_pc());
-
-        // push PC High
-        self.bus
-            .write_byte(self.sp, ((self.pc & 0xFF00) >> 8) as u8);
-        self.sp -= 1;
-
-        // push PC Low
-        self.bus.write_byte(self.sp, (self.pc & 0xFF) as u8);
-        self.sp -= 1;
-
-        // Save new PC
-        self.pc = Self::make_word(pcl, pch);
     }
 
     fn op_rep(&mut self) {

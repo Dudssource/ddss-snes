@@ -1,3 +1,12 @@
 pub mod alu;
 pub mod bus;
-pub mod bits;
+mod bits;
+mod op_adc;
+mod op_sbc;
+mod op_branch;
+mod op_lda;
+mod op_sta;
+mod op_ldy;
+mod op_ldx;
+mod op_jsl;
+mod op_jsr;
