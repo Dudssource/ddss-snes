@@ -17,3 +17,5 @@ mod op_cld;
 mod op_cli;
 mod op_sei;
 mod op_clv;
+mod op_rep;
+mod op_sep;

@@ -166,7 +166,7 @@ impl Cpu {
             // SEI Set interrupt disable status
             0x78 => self.op_sei(),
 
-            // CLV Clear overflow flag 
+            // CLV Clear overflow flag
             0xB8 => self.op_clv(),
 
             // ERROR
@@ -692,18 +692,11 @@ impl Cpu {
     }
 
     pub fn flag_nz(&mut self, value: u16) {
-        if value == 0 {
-            self.reg_p |= S_RESULT_ZERO;
-        } else {
-            self.reg_p &= !S_RESULT_ZERO;
-        }
+        // zero
+        self.flag(S_RESULT_ZERO, value == 0);
 
         // 8 or 16 bit (6502 emulation on/off)
-        if Word::is_signed(&self.emulation, &value) {
-            self.reg_p |= S_NEGATIVE;
-        } else {
-            self.reg_p &= !S_NEGATIVE;
-        }
+        self.flag(S_NEGATIVE, Word::is_signed(&self.emulation, &value));
     }
 
     pub fn check_overflow(&mut self, value: i32) {
@@ -720,19 +713,11 @@ impl Cpu {
     }
 
     pub fn flag_v(&mut self, set: bool) {
-        if set {
-            self.reg_p |= S_OVERFLOW;
-        } else {
-            self.reg_p &= !(S_OVERFLOW);
-        }
+        self.flag(S_OVERFLOW, set);
     }
 
     pub fn flag_c(&mut self, set: bool) {
-        if set {
-            self.reg_p |= S_CARRY;
-        } else {
-            self.reg_p &= !(S_CARRY);
-        }
+        self.flag(S_CARRY, set);
     }
 
     pub fn flag(&mut self, flag: u8, set: bool) {
@@ -741,22 +726,6 @@ impl Cpu {
         } else {
             self.reg_p &= !(flag);
         }
-    }
-
-    fn op_rep(&mut self) {
-        let mut mask = (self.fetch(AddressMode::Immediate) & 0xFF) as u8;
-        if self.emulation {
-            mask &= 0xCF;
-        }
-        self.reg_p = self.reg_p & (!mask);
-    }
-
-    fn op_sep(&mut self) {
-        let mut mask = (self.fetch(AddressMode::Immediate) & 0xFF) as u8;
-        if self.emulation {
-            mask &= 0xCF;
-        }
-        self.reg_p = self.reg_p | mask;
     }
 
     fn op_cpx(&mut self, opcode: u8) {
