@@ -148,6 +148,27 @@ impl Cpu {
             0xE9 | 0xE5 | 0xF5 | 0xED | 0xFD | 0xF9 | 0xE1 | 0xF1 | 0xEF | 0xFF | 0xF2 | 0xE7
             | 0xF7 | 0xE3 | 0xF3 => self.op_sbc(opcode),
 
+            // CLC Clear carry flag
+            0x18 => self.op_clc(),
+
+            // SEC Set carry flag
+            0x38 => self.op_sec(),
+
+            // CLD Clear decimal mode
+            0xD8 => self.op_cld(),
+
+            // SED Set decimal mode
+            0xF8 => self.op_sed(),
+
+            // CLI Clear interrupt disable status
+            0x58 => self.op_cli(),
+
+            // SEI Set interrupt disable status
+            0x78 => self.op_sei(),
+
+            // CLV Clear overflow flag 
+            0xB8 => self.op_clv(),
+
             // ERROR
             _ => panic!("invalid opcode {}", opcode),
         }
@@ -206,7 +227,6 @@ impl Cpu {
 
             AddressMode::Immediate => {
                 self.pc += 1;
-                dbg!(self.pc);
                 let data_lo = self.bus.read_byte(self.pbr_pc());
 
                 self.pc += 1;
@@ -712,6 +732,14 @@ impl Cpu {
             self.reg_p |= S_CARRY;
         } else {
             self.reg_p &= !(S_CARRY);
+        }
+    }
+
+    pub fn flag(&mut self, flag: u8, set: bool) {
+        if set {
+            self.reg_p |= flag;
+        } else {
+            self.reg_p &= !(flag);
         }
     }
 

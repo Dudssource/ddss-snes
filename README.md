@@ -8,6 +8,12 @@ A toy SNES emulator written in Rust, just for fun.
 cargo build
 ```
 
+## Testing
+
+```shell
+cargo test
+```
+
 ## References
 
 * https://emudev.de/q00-snes/65816-the-cpu/
