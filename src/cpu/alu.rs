@@ -14,9 +14,9 @@ pub struct Cpu {
     pub reg_x: u16,
     pub reg_y: u16,
     pub reg_p: u8,
-    reg_d: u16,
+    pub reg_d: u16,
     pub reg_pb: u8,
-    reg_db: u8,
+    pub reg_db: u8,
     pub sp: u32,
     pub pc: u16,
     pub emulation: bool,
@@ -168,6 +168,13 @@ impl Cpu {
 
             // CLV Clear overflow flag
             0xB8 => self.op_clv(),
+
+            // ASL Shift Left One Bit (Memory or Accumulator)
+            0x0A | 0x06 | 0x16 | 0x0E | 0x1E => self.op_asl(opcode),
+
+            // AND memory with accumulator
+            0x29 | 0x25 | 0x35 | 0x2D | 0x3D | 0x39 | 0x21 | 0x31 | 0x2F | 0x3F | 0x32 | 0x27
+            | 0x37 | 0x23 | 0x33 => self.op_and(opcode),
 
             // ERROR
             _ => panic!("invalid opcode {}", opcode),
@@ -726,135 +733,5 @@ impl Cpu {
         } else {
             self.reg_p &= !(flag);
         }
-    }
-
-    fn op_cpx(&mut self, opcode: u8) {
-        let operand = match opcode {
-            0xE0 => self.fetch(AddressMode::Immediate),
-            0xE4 => self.fetch(AddressMode::ZeroPage),
-            0xEC => self.fetch(AddressMode::Absolute),
-            _ => panic!("invalid opcode {}", opcode),
-        };
-
-        // negative and zero
-        self.flag_nz(self.reg_x - operand);
-
-        // carry is clear when borrow is required; that is, if the register is less than the operand
-        self.flag_c(self.reg_x >= operand);
-    }
-
-    fn op_cpy(&mut self, opcode: u8) {
-        let operand = match opcode {
-            0xC0 => self.fetch(AddressMode::Immediate),
-            0xC4 => self.fetch(AddressMode::ZeroPage),
-            0xCC => self.fetch(AddressMode::Absolute),
-            _ => panic!("invalid opcode {}", opcode),
-        };
-
-        // negative and zero
-        self.flag_nz(self.reg_y - operand);
-
-        // carry is clear when borrow is required; that is, if the register is less than the operand
-        self.flag_c(self.reg_y >= operand);
-    }
-
-    fn op_cmp(&mut self, opcode: u8) {
-        let operand = match opcode {
-            0xC9 => self.fetch(AddressMode::Immediate),
-            0xC5 => self.fetch(AddressMode::ZeroPage),
-            0xD5 => self.fetch(AddressMode::ZeroPageX),
-            0xCD => self.fetch(AddressMode::Absolute),
-            0xDD => self.fetch(AddressMode::AbsoluteIndexedX),
-            0xD9 => self.fetch(AddressMode::AbsoluteIndexedY),
-            0xC1 => self.fetch(AddressMode::ZeroPageDirectIndirectIndexedY),
-            0xD1 => self.fetch(AddressMode::ZeroPageDirectIndirectIndexedY),
-            0xCF => self.fetch(AddressMode::AbsoluteLong),
-            0xDF => self.fetch(AddressMode::AbsoluteLongIndexedX),
-            0xD2 => self.fetch(AddressMode::DirectIndirect),
-            0xC7 => self.fetch(AddressMode::DirectIndirectLong),
-            0xD7 => self.fetch(AddressMode::ZeroPageDirectIndirectIndexedLong),
-            0xC3 => self.fetch(AddressMode::StackRelative),
-            0xD3 => self.fetch(AddressMode::StackRelativeIndirectIndexedY),
-            _ => panic!("invalid opcode {}", opcode),
-        };
-
-        // negative and zero
-        self.flag_nz(self.reg_a.data - operand);
-
-        // carry is clear when borrow is required; that is, if the register is less than the operand
-        self.flag_c(self.reg_a.data >= operand);
-    }
-
-    fn op_jml(&mut self) {
-        self.pc += 1;
-        let addr_lo = self.bus.read_byte(self.pbr_pc());
-
-        self.pc += 1;
-        let addr_hi = self.bus.read_byte(self.pbr_pc());
-
-        let addr = Self::make_word(addr_lo, addr_hi) as u32;
-
-        let pcl = self.bus.read_byte(addr) as u16;
-        let pch = self.bus.read_byte(addr + 1) as u16;
-        let pbr = self.bus.read_byte(addr + 2);
-
-        // Save new PBR (bank)
-        self.reg_pb = pbr;
-
-        // Save new PC
-        self.pc = (pch << 8) | pcl;
-    }
-
-    fn op_pha(&mut self) {
-        self.pc += 1;
-        self.bus.write_byte(self.sp, self.reg_a.hi());
-        self.sp -= 1;
-        self.bus.write_byte(self.sp, self.reg_a.lo());
-        self.sp -= 1;
-    }
-
-    fn op_phb(&mut self) {
-        self.pc += 1;
-        self.bus.write_byte(self.sp, self.reg_db);
-        self.sp -= 1;
-    }
-
-    fn op_phd(&mut self) {
-        let value = Word { data: self.reg_d };
-        self.pc += 1;
-        self.bus.write_byte(self.sp, value.hi());
-        self.sp -= 1;
-        self.bus.write_byte(self.sp, value.lo());
-        self.sp -= 1;
-    }
-
-    fn op_phk(&mut self) {
-        self.pc += 1;
-        self.bus.write_byte(self.sp, self.reg_pb);
-        self.sp -= 1;
-    }
-
-    fn op_php(&mut self) {
-        self.pc += 1;
-        self.bus.write_byte(self.sp, self.reg_p);
-        self.sp -= 1;
-    }
-
-    fn op_phx(&mut self) {
-        let value = Word { data: self.reg_x };
-        self.pc += 1;
-        self.bus.write_byte(self.sp, value.hi());
-        self.sp -= 1;
-        self.bus.write_byte(self.sp, value.lo());
-        self.sp -= 1;
-    }
-
-    fn op_phy(&mut self) {
-        let value = Word { data: self.reg_y };
-        self.pc += 1;
-        self.bus.write_byte(self.sp, value.hi());
-        self.sp -= 1;
-        self.bus.write_byte(self.sp, value.lo());
-        self.sp -= 1;
     }
 }
