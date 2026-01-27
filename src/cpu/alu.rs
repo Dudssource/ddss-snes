@@ -176,6 +176,15 @@ impl Cpu {
             0x29 | 0x25 | 0x35 | 0x2D | 0x3D | 0x39 | 0x21 | 0x31 | 0x2F | 0x3F | 0x32 | 0x27
             | 0x37 | 0x23 | 0x33 => self.op_and(opcode),
 
+            // BIT Test bits in memory with accumulator
+            0x24 | 0x2C | 0x89 | 0x34 | 0x3C => self.op_bit(opcode),
+
+            // DEC Decrement memory by one
+            0xC6 | 0xD6 | 0xCE | 0xDE | 0x3A => self.op_dec(opcode),
+
+            // INC Increment memory by one
+            0xE6 | 0xF6 | 0xEE | 0xFE | 0x1A => self.op_inc(opcode),
+
             // ERROR
             _ => panic!("invalid opcode {}", opcode),
         }
