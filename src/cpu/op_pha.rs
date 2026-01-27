@@ -1,4 +1,4 @@
-use crate::cpu::alu::{AddressMode, Cpu};
+use crate::cpu::alu::Cpu;
 
 impl Cpu {
     pub fn op_pha(&mut self) {
