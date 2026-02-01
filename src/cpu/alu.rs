@@ -185,6 +185,18 @@ impl Cpu {
             // INC Increment memory by one
             0xE6 | 0xF6 | 0xEE | 0xFE | 0x1A => self.op_inc(opcode),
 
+            // DEX Decrement index X by one
+            0xCA => self.op_dex(),
+
+            // INX Increment Index X by one
+            0xE8 => self.op_inx(),
+
+            // DEY Decrement index Y by one
+            0x88 => self.op_dey(),
+
+            // INY Increment Index Y by one
+            0xC8 => self.op_iny(),
+
             // ERROR
             _ => panic!("invalid opcode {}", opcode),
         }
@@ -742,5 +754,24 @@ impl Cpu {
         } else {
             self.reg_p &= !(flag);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fetch_address_absolute() {
+        let mut b = Bus::new();
+        b.write_byte(0x100, 0xFF);
+        b.write_byte(0x101, 0xFF);
+        b.write_byte(0x12FFFF, 0x1);
+        b.write_byte(0x130000, 0x2);
+        let mut c = Cpu::new(Box::new(b));
+        c.reg_db = 0x12;
+        c.pc = 0xFF;
+        let result = c.fetch(AddressMode::Absolute);
+        assert_eq!(result, 0x201);
     }
 }
