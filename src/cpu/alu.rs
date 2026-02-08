@@ -197,6 +197,13 @@ impl Cpu {
             // INY Increment Index Y by one
             0xC8 => self.op_iny(),
 
+            // EOR "Exclusive-Or" memory with accumulator
+            0x49 | 0x45 | 0x55 | 0x4D | 0x5D | 0x59 | 0x41 | 0x51 | 0x4F | 0x5F | 0x52 | 0x47
+            | 0x57 | 0x43 | 0x53 => self.op_eor(opcode),
+
+            // LSR Shift right one bit (memory or accumulator)
+            0x4A | 0x46 | 0x56 | 0x4E | 0x5E => self.op_lsr(opcode),
+
             // ERROR
             _ => panic!("invalid opcode {}", opcode),
         }
