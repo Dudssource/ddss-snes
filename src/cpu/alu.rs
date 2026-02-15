@@ -116,6 +116,9 @@ impl Cpu {
             // JML Jump Long
             0xDC => self.op_jml(),
 
+            // JMP Jump to new location
+            0x4C | 0x6C | 0x7C | 0x5C => self.op_jmp(opcode),
+
             // SEP Set Processor Status Bits
             0xE2 => self.op_sep(),
 

@@ -21,6 +21,7 @@ mod op_inc;
 mod op_inx;
 mod op_iny;
 mod op_jml;
+mod op_jmp;
 mod op_jsl;
 mod op_jsr;
 mod op_lda;
