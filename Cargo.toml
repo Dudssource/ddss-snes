@@ -8,3 +8,4 @@ name = "ddss_snes"
 path = "src/lib.rs"
 
 [dependencies]
+hex = "0.4"
