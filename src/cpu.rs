@@ -42,3 +42,4 @@ mod op_sed;
 mod op_sei;
 mod op_sep;
 mod op_sta;
+mod op_xce;

@@ -1,4 +1,6 @@
 use crate::cpu::{bits::Word, bus::Bus};
+use log::debug;
+use std::fmt;
 
 pub const S_CARRY: u8 = 0x1;
 pub const S_RESULT_ZERO: u8 = 0x1 << 1;
@@ -52,10 +54,10 @@ impl Cpu {
             reg_y: 0x0,
             reg_p: 0x0,
             reg_d: 0x0,
-            pc: 0x0,
+            pc: 0x8000,
             reg_pb: 0x0,
             reg_db: 0x0,
-            emulation: false,
+            emulation: true,
         }
     }
 
@@ -76,6 +78,8 @@ impl Cpu {
     }
 
     fn decode_and_execute(&mut self, opcode: u8) {
+        debug!("OPCODE 0x{:X}", opcode);
+        
         match opcode {
             // STA Store accumulator in memory
             0x85 | 0x95 | 0x8D | 0x9D | 0x99 | 0x81 | 0x91 | 0x8F | 0x9F | 0x92 | 0x87 | 0x97
@@ -207,12 +211,17 @@ impl Cpu {
             // LSR Shift right one bit (memory or accumulator)
             0x4A | 0x46 | 0x56 | 0x4E | 0x5E => self.op_lsr(opcode),
 
+            //  XCE Exchange Carry and Emulation Bits
+            0xFB => self.op_xce(),
+
             // ERROR
-            _ => panic!("invalid opcode {}", opcode),
+            _ => panic!("invalid opcode 0x{:X} at 0x{:X}", opcode, self.pc),
         }
     }
 
     pub fn fetch(&mut self, mode: AddressMode) -> u16 {
+        debug!("fetch {:?}", mode);
+
         match mode {
             AddressMode::Absolute => {
                 self.pc += 1;

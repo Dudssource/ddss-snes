@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 const STACK_POINTER_START: u16 = 0x1FF;
 const STACK_POINTER_END: u16 = 0x100;
 
@@ -25,6 +27,12 @@ impl Bus {
     pub fn read_byte(&self, addr: u32) -> u8 {
         match addr {
             _ => self.work_ram[addr as usize],
+        }
+    }
+
+    pub fn read_bytes(&self, addr: Range<usize>) -> &[u8] {
+        match addr {
+            _ => &self.work_ram[addr],
         }
     }
 }
