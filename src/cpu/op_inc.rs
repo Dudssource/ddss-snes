@@ -1,3 +1,5 @@
+use log::debug;
+
 use crate::cpu::{
     alu::{AddressMode, Cpu},
     bits::Word,
@@ -33,5 +35,10 @@ impl Cpu {
             0x1A => self.reg_a.data = value,
             _ => panic!("invalid opcode {}", opcode),
         };
+
+        debug!(
+            "[0x{:X}] INC : VALUE=0x{:X} FLAGS={:b}",
+            opcode, value, self.reg_p
+        );
     }
 }

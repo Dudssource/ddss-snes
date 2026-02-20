@@ -1,13 +1,15 @@
+use log::debug;
+
 use crate::cpu::alu::Cpu;
 
 impl Cpu {
-    pub fn op_jsl(&mut self) {
+    pub fn op_jsl(&mut self, opcode: u8) {
         // New PC Low
-        self.pc += 1;
+        // self.incr_pc();
         let pcl = self.bus.read_byte(self.pbr_pc()) as u16;
 
         // New PC High
-        self.pc += 1;
+        self.incr_pc();
         let pch = self.bus.read_byte(self.pbr_pc()) as u16;
 
         // push PBR
@@ -15,7 +17,7 @@ impl Cpu {
         self.sp -= 1;
 
         // New PBR
-        self.pc += 1;
+        self.incr_pc();
         let pbr = self.bus.read_byte(self.pbr_pc());
 
         // push PC High
@@ -31,6 +33,11 @@ impl Cpu {
         self.reg_pb = pbr;
 
         // Save new PC
-        self.pc = (pch << 8) | pcl;
+        let newpc = (pch << 8) | pcl;
+        debug!(
+            "[0x{:X}] JSL : OLD_PC=0x{:X} NEW_PC=0x{:X} PB=0x{:X}",
+            opcode, self.pc, newpc, self.reg_pb
+        );
+        self.pc = newpc;
     }
 }

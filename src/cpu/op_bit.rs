@@ -1,3 +1,5 @@
+use log::debug;
+
 use crate::cpu::alu::{AddressMode, Cpu};
 
 impl Cpu {
@@ -14,5 +16,10 @@ impl Cpu {
         let result = self.reg_a.data & value;
         self.flag_v((self.emulation && (value & 0x40) > 0) || (value & 0x4000) > 0);
         self.flag_nz(result);
+
+        debug!(
+            "[0x{:X}] BIT : VALUE=0x{:X} RESULT=0x{:X} FLAGS={:b}",
+            opcode, value, result, self.reg_p
+        );
     }
 }

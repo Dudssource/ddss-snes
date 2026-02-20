@@ -1,8 +1,11 @@
+use log::debug;
+
 use crate::cpu::alu::Cpu;
 use crate::cpu::alu::*;
 
 impl Cpu {
     pub fn op_lda(&mut self, opcode: u8) {
+        let oldpc = self.pc;
         self.reg_a.data = match opcode {
             0xA9 => self.fetch(AddressMode::Immediate),
             0xA5 => self.fetch(AddressMode::ZeroPage),
@@ -23,5 +26,9 @@ impl Cpu {
         };
 
         self.flag_nz(self.reg_a.data);
+        debug!(
+            "[0x{:X}:0x{:X}] LDA : A=0x{:X} FLAGS={:b}",
+            oldpc, opcode, self.reg_a.data, self.reg_p
+        );
     }
 }

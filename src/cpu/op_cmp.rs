@@ -1,4 +1,6 @@
-use crate::cpu::alu::{Cpu, AddressMode};
+use log::debug;
+
+use crate::cpu::alu::{AddressMode, Cpu};
 
 impl Cpu {
     pub fn op_cmp(&mut self, opcode: u8) {
@@ -26,5 +28,10 @@ impl Cpu {
 
         // carry is clear when borrow is required; that is, if the register is less than the operand
         self.flag_c(self.reg_a.data >= operand);
+
+        debug!(
+            "[0x{:X}] CMP : OPERAND=0x{:X} FLAGS={:b}",
+            opcode, operand, self.reg_p
+        );
     }
 }

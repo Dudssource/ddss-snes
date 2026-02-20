@@ -1,3 +1,5 @@
+use log::debug;
+
 use crate::cpu::alu::{Cpu, S_NEGATIVE, S_RESULT_ZERO};
 
 impl Cpu {
@@ -20,5 +22,10 @@ impl Cpu {
         // negative and zero flags
         self.flag(S_NEGATIVE, false);
         self.flag(S_RESULT_ZERO, value == 0);
+
+        debug!(
+            "[0x{:X}] EOR : VALUE=0x{:X} FLAGS={:b}",
+            opcode, value, self.reg_p
+        );
     }
 }

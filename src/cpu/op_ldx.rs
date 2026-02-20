@@ -3,7 +3,6 @@ use log::debug;
 
 impl Cpu {
     pub fn op_ldx(&mut self, opcode: u8) {
-        debug!("LDX #${:X} : PC 0x{:X}", opcode, self.pc);
         self.reg_x = match opcode {
             0xA2 => self.fetch(AddressMode::Immediate),
             0xA6 => self.fetch(AddressMode::ZeroPage),
@@ -13,7 +12,10 @@ impl Cpu {
             _ => panic!("invalid opcode {}", opcode),
         };
 
-
         self.flag_nz(self.reg_x);
+        debug!(
+            "[0x{:X}:0x{:X}] LDX : X=0x{:X} FLAGS={:b}",
+            self.pc, opcode, self.reg_x, self.reg_p
+        );
     }
 }

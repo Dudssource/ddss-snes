@@ -1,3 +1,5 @@
+use log::debug;
+
 use crate::cpu::alu::{AddressMode, Cpu};
 
 impl Cpu {
@@ -12,5 +14,9 @@ impl Cpu {
         };
 
         self.flag_nz(self.reg_y);
+        debug!(
+            "[0x{:X}] LDY : Y=0x{:X} FLAGS={:b}",
+            opcode, self.reg_y, self.reg_p
+        );
     }
 }

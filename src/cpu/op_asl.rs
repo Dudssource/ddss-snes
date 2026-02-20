@@ -1,3 +1,5 @@
+use log::debug;
+
 use crate::cpu::alu::Cpu;
 
 impl Cpu {
@@ -19,5 +21,10 @@ impl Cpu {
 
         // negative and zero flags
         self.flag_nz(value);
+
+        debug!(
+            "[0x{:X}] ASL : VALUE=0x{:X} FLAGS={:b}",
+            opcode, value, self.reg_p
+        );
     }
 }

@@ -1,13 +1,15 @@
 use crate::cpu::alu::Cpu;
+use log::debug;
 
 impl Cpu {
-    pub fn op_jsr(&mut self) {
+    pub fn op_jsr(&mut self, opcode: u8) {
+        let oldpc = self.pc;
         // New PC Low
-        self.pc += 1;
+        self.incr_pc();
         let pcl = self.bus.read_byte(self.pbr_pc());
 
         // New PC High
-        self.pc += 1;
+        self.incr_pc();
         let pch = self.bus.read_byte(self.pbr_pc());
 
         // push PC High
@@ -20,6 +22,11 @@ impl Cpu {
         self.sp -= 1;
 
         // Save new PC
-        self.pc = Self::make_word(pcl, pch);
+        let newpc = Self::make_word(pcl, pch);
+        debug!(
+            "[0x{:X}:0x{:X}] JSR : OLD_PC=0x{:X} NEW_PC=0x{:X}",
+            oldpc, opcode, self.pc, newpc
+        );
+        self.pc = newpc - 1;
     }
 }

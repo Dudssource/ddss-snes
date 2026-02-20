@@ -1,11 +1,13 @@
+use log::debug;
+
 use crate::cpu::alu::Cpu;
 
 impl Cpu {
-    pub fn op_jml(&mut self) {
-        self.pc += 1;
+    pub fn op_jml(&mut self, opcode: u8) {
+        // self.incr_pc();
         let addr_lo = self.bus.read_byte(self.pbr_pc());
 
-        self.pc += 1;
+        self.incr_pc();
         let addr_hi = self.bus.read_byte(self.pbr_pc());
 
         let addr = Self::make_word(addr_lo, addr_hi) as u32;
@@ -18,6 +20,11 @@ impl Cpu {
         self.reg_pb = pbr;
 
         // Save new PC
-        self.pc = (pch << 8) | pcl;
+        let newpc = (pch << 8) | pcl;
+        debug!(
+            "[0x{:X}] JML : OLD_PC=0x{:X} NEW_PC=0x{:X} PB=0x{:X}",
+            opcode, self.pc, newpc, self.reg_pb
+        );
+        self.pc = newpc;
     }
 }

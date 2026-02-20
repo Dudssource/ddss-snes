@@ -1,3 +1,5 @@
+use log::debug;
+
 use crate::cpu::alu::Cpu;
 use crate::cpu::alu::*;
 
@@ -36,7 +38,7 @@ impl Cpu {
 
         match taken {
             Ok(taken) => {
-                self.pc += 1;
+                //self.incr_pc();
                 let offset = self.bus.read_byte(self.pbr_pc());
 
                 // TODO: Add 1 more cycle if branch is taken
@@ -47,6 +49,16 @@ impl Cpu {
                         true => self.pc - ((!offset) + 1) as u16,
                         false => self.pc + offset as u16,
                     };
+
+                    debug!(
+                        "[0x{:X}] BRANCH : OFFSET=0x{:X} PC=0x{:X} FLAGS={:b}",
+                        opcode, offset, self.pc, self.reg_p
+                    );
+                } else {
+                    debug!(
+                        "[0x{:X}] BRANCH : OFFSET=0x{:X} FLAGS={:b}",
+                        opcode, offset, self.reg_p
+                    );
                 }
             }
             Err(msg) => panic!("error : {}", msg),

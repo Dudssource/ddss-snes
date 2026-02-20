@@ -1,3 +1,5 @@
+use log::debug;
+
 use crate::cpu::alu::AddressMode;
 use crate::cpu::alu::Cpu;
 use crate::cpu::alu::*;
@@ -114,6 +116,11 @@ impl Cpu {
 
         // N and Z flags
         self.flag_nz(self.reg_a.data);
+
+        debug!(
+            "[0x{:X}] SBC : A=0x{:X} FLAGS={:b}",
+            opcode, self.reg_a.data, self.reg_p
+        );
     }
 }
 

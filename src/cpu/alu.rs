@@ -48,7 +48,7 @@ impl Cpu {
     pub fn new(bus: Box<Bus>) -> Self {
         Self {
             bus: bus,
-            sp: 0xFF,
+            sp: 0x1FF,
             reg_a: Word::new(0, 0),
             reg_x: 0x0,
             reg_y: 0x0,
@@ -65,6 +65,16 @@ impl Cpu {
         loop {
             let opcode = self.bus.read_byte(self.pc as u32);
             self.decode_and_execute(opcode);
+            self.incr_pc();
+        }
+    }
+
+    pub fn incr_pc(&mut self) {
+        // if the program counter increments past $FFFF, it rolls over to $0000
+        // without incrementing the program counter bank
+        if self.pc == 0xFFFF {
+            self.pc = 0x0;
+        } else {
             self.pc += 1;
         }
     }
@@ -78,8 +88,6 @@ impl Cpu {
     }
 
     fn decode_and_execute(&mut self, opcode: u8) {
-        debug!("OPCODE 0x{:X}", opcode);
-        
         match opcode {
             // STA Store accumulator in memory
             0x85 | 0x95 | 0x8D | 0x9D | 0x99 | 0x81 | 0x91 | 0x8F | 0x9F | 0x92 | 0x87 | 0x97
@@ -109,43 +117,43 @@ impl Cpu {
             0x10 | 0x30 | 0x50 | 0x70 | 0x90 | 0xB0 | 0xD0 | 0xF0 | 0x80 => self.op_branch(opcode),
 
             // JSR Jump to new location saving return address
-            0x20 => self.op_jsr(),
+            0x20 => self.op_jsr(opcode),
 
             // JSL Jump Subroutine Long
-            0x22 => self.op_jsl(),
+            0x22 => self.op_jsl(opcode),
 
             // REP Reset Status Bits
-            0xC2 => self.op_rep(),
+            0xC2 => self.op_rep(opcode),
 
             // JML Jump Long
-            0xDC => self.op_jml(),
+            0xDC => self.op_jml(opcode),
 
             // JMP Jump to new location
             0x4C | 0x6C | 0x7C | 0x5C => self.op_jmp(opcode),
 
             // SEP Set Processor Status Bits
-            0xE2 => self.op_sep(),
+            0xE2 => self.op_sep(opcode),
 
             // PHA Push accumulator on stack
-            0x48 => self.op_pha(),
+            0x48 => self.op_pha(opcode),
 
             // PHB Push Data Bank Register on Stack
-            0x8B => self.op_phb(),
+            0x8B => self.op_phb(opcode),
 
             // PHD Push Direct Register on Stack
-            0x0B => self.op_phd(),
+            0x0B => self.op_phd(opcode),
 
             // PHK Push Program Bank Register on Stack
-            0x4B => self.op_phk(),
+            0x4B => self.op_phk(opcode),
 
             // PHP Push processor status on stack
-            0x08 => self.op_php(),
+            0x08 => self.op_php(opcode),
 
             // PHX Push Index X on Stack
-            0xDA => self.op_phx(),
+            0xDA => self.op_phx(opcode),
 
             // PHY Push Index Y on Stack
-            0x5A => self.op_phy(),
+            0x5A => self.op_phy(opcode),
 
             // ADC Add memory to accumulator with carry
             0x69 | 0x65 | 0x75 | 0x6D | 0x7D | 0x79 | 0x61 | 0x71 | 0x6F | 0x7F | 0x72 | 0x67
@@ -156,25 +164,25 @@ impl Cpu {
             | 0xF7 | 0xE3 | 0xF3 => self.op_sbc(opcode),
 
             // CLC Clear carry flag
-            0x18 => self.op_clc(),
+            0x18 => self.op_clc(opcode),
 
             // SEC Set carry flag
-            0x38 => self.op_sec(),
+            0x38 => self.op_sec(opcode),
 
             // CLD Clear decimal mode
-            0xD8 => self.op_cld(),
+            0xD8 => self.op_cld(opcode),
 
             // SED Set decimal mode
-            0xF8 => self.op_sed(),
+            0xF8 => self.op_sed(opcode),
 
             // CLI Clear interrupt disable status
-            0x58 => self.op_cli(),
+            0x58 => self.op_cli(opcode),
 
             // SEI Set interrupt disable status
-            0x78 => self.op_sei(),
+            0x78 => self.op_sei(opcode),
 
             // CLV Clear overflow flag
-            0xB8 => self.op_clv(),
+            0xB8 => self.op_clv(opcode),
 
             // ASL Shift Left One Bit (Memory or Accumulator)
             0x0A | 0x06 | 0x16 | 0x0E | 0x1E => self.op_asl(opcode),
@@ -193,16 +201,16 @@ impl Cpu {
             0xE6 | 0xF6 | 0xEE | 0xFE | 0x1A => self.op_inc(opcode),
 
             // DEX Decrement index X by one
-            0xCA => self.op_dex(),
+            0xCA => self.op_dex(opcode),
 
             // INX Increment Index X by one
-            0xE8 => self.op_inx(),
+            0xE8 => self.op_inx(opcode),
 
             // DEY Decrement index Y by one
-            0x88 => self.op_dey(),
+            0x88 => self.op_dey(opcode),
 
             // INY Increment Index Y by one
-            0xC8 => self.op_iny(),
+            0xC8 => self.op_iny(opcode),
 
             // EOR "Exclusive-Or" memory with accumulator
             0x49 | 0x45 | 0x55 | 0x4D | 0x5D | 0x59 | 0x41 | 0x51 | 0x4F | 0x5F | 0x52 | 0x47
@@ -212,7 +220,10 @@ impl Cpu {
             0x4A | 0x46 | 0x56 | 0x4E | 0x5E => self.op_lsr(opcode),
 
             //  XCE Exchange Carry and Emulation Bits
-            0xFB => self.op_xce(),
+            0xFB => self.op_xce(opcode),
+
+            // TXS Transfer index X to stack pointer
+            0x9A => self.op_txs(opcode),
 
             // ERROR
             _ => panic!("invalid opcode 0x{:X} at 0x{:X}", opcode, self.pc),
@@ -224,10 +235,10 @@ impl Cpu {
 
         match mode {
             AddressMode::Absolute => {
-                self.pc += 1;
+                self.incr_pc();
                 let addr_lo = self.bus.read_byte(self.pbr_pc());
 
-                self.pc += 1;
+                self.incr_pc();
                 let addr_hi = self.bus.read_byte(self.pbr_pc());
 
                 let addr = Self::make_word(addr_lo, addr_hi) as u32;
@@ -239,10 +250,10 @@ impl Cpu {
             }
 
             AddressMode::AbsoluteIndexedX => {
-                self.pc += 1;
+                self.incr_pc();
                 let addr_lo = self.bus.read_byte(self.pbr_pc());
 
-                self.pc += 1;
+                self.incr_pc();
                 let addr_hi = self.bus.read_byte(self.pbr_pc());
 
                 let addr = (Self::make_word(addr_lo, addr_hi) + self.reg_x) as u32;
@@ -256,10 +267,10 @@ impl Cpu {
             }
 
             AddressMode::AbsoluteIndexedY => {
-                self.pc += 1;
+                self.incr_pc();
                 let addr_lo = self.bus.read_byte(self.pbr_pc());
 
-                self.pc += 1;
+                self.incr_pc();
                 let addr_hi = self.bus.read_byte(self.pbr_pc());
 
                 let addr = (Self::make_word(addr_lo, addr_hi) + self.reg_y) as u32;
@@ -273,17 +284,19 @@ impl Cpu {
             }
 
             AddressMode::Immediate => {
-                self.pc += 1;
+                self.incr_pc();
                 let data_lo = self.bus.read_byte(self.pbr_pc());
 
-                self.pc += 1;
+                self.incr_pc();
                 let data_hi = self.bus.read_byte(self.pbr_pc());
+
+                debug!("[0x{:X}] fetch {:?}", self.pc, mode);
 
                 Self::make_word(data_lo, data_hi)
             }
 
             AddressMode::ZeroPage => {
-                self.pc += 1;
+                self.incr_pc();
                 let direct_offset = self.bus.read_byte(self.pbr_pc()) as u32;
 
                 let data_lo = self.bus.read_byte(self.reg_d as u32 + direct_offset);
@@ -293,7 +306,7 @@ impl Cpu {
             }
 
             AddressMode::ZeroPageX => {
-                self.pc += 1;
+                self.incr_pc();
                 let direct_offset = self.bus.read_byte(self.pbr_pc()) as u32;
 
                 let data_lo = self
@@ -307,7 +320,7 @@ impl Cpu {
             }
 
             AddressMode::ZeroPageY => {
-                self.pc += 1;
+                self.incr_pc();
                 let direct_offset = self.bus.read_byte(self.pbr_pc()) as u32;
 
                 let data_lo = self
@@ -321,7 +334,7 @@ impl Cpu {
             }
 
             AddressMode::ZeroPageDirectIndirectIndexedY => {
-                self.pc += 1;
+                self.incr_pc();
                 let direct_offset = self.bus.read_dword(self.pbr_pc());
 
                 let addr_lo = self.bus.read_byte(self.reg_d as u32 + direct_offset);
@@ -337,7 +350,7 @@ impl Cpu {
             }
 
             AddressMode::ZeroPageDirectIndexedIndirectX => {
-                self.pc += 1;
+                self.incr_pc();
                 let direct_offset = self.bus.read_dword(self.pbr_pc());
 
                 let addr_lo = self
@@ -358,13 +371,13 @@ impl Cpu {
             }
 
             AddressMode::AbsoluteLong => {
-                self.pc += 1;
+                self.incr_pc();
                 let addr_lo = self.bus.read_byte(self.pbr_pc());
 
-                self.pc += 1;
+                self.incr_pc();
                 let addr_hi = self.bus.read_byte(self.pbr_pc());
 
-                self.pc += 1;
+                self.incr_pc();
                 let addr_bank = self.bus.read_dword(self.pbr_pc());
 
                 let addr = Self::make_word(addr_lo, addr_hi) as u32;
@@ -376,13 +389,13 @@ impl Cpu {
             }
 
             AddressMode::AbsoluteLongIndexedX => {
-                self.pc += 1;
+                self.incr_pc();
                 let addr_lo = self.bus.read_byte(self.pbr_pc());
 
-                self.pc += 1;
+                self.incr_pc();
                 let addr_hi = self.bus.read_byte(self.pbr_pc());
 
-                self.pc += 1;
+                self.incr_pc();
                 let addr_bank = self.bus.read_dword(self.pbr_pc());
 
                 let addr = (Self::make_word(addr_lo, addr_hi) + self.reg_x) as u32;
@@ -394,7 +407,7 @@ impl Cpu {
             }
 
             AddressMode::DirectIndirect => {
-                self.pc += 1;
+                self.incr_pc();
                 let direct_offset = self.bus.read_dword(self.pbr_pc());
 
                 let addr_lo = self.bus.read_byte(self.reg_d as u32 + direct_offset);
@@ -410,7 +423,7 @@ impl Cpu {
             }
 
             AddressMode::DirectIndirectLong => {
-                self.pc += 1;
+                self.incr_pc();
                 let direct_offset = self.bus.read_dword(self.pbr_pc());
 
                 let addr_lo = self.bus.read_byte(self.reg_d as u32 + direct_offset);
@@ -426,7 +439,7 @@ impl Cpu {
             }
 
             AddressMode::ZeroPageDirectIndirectIndexedLong => {
-                self.pc += 1;
+                self.incr_pc();
                 let direct_offset = self.bus.read_dword(self.pbr_pc());
 
                 let addr_lo = self.bus.read_byte(self.reg_d as u32 + direct_offset);
@@ -442,7 +455,7 @@ impl Cpu {
             }
 
             AddressMode::StackRelative => {
-                self.pc += 1;
+                self.incr_pc();
                 let stack_offset = self.bus.read_dword(self.pbr_pc());
 
                 let data_lo = self.bus.read_byte(self.sp + stack_offset);
@@ -452,7 +465,7 @@ impl Cpu {
             }
 
             AddressMode::StackRelativeIndirectIndexedY => {
-                self.pc += 1;
+                self.incr_pc();
                 let stack_offset = self.bus.read_dword(self.pbr_pc());
 
                 let addr_lo = self.bus.read_byte(self.sp + stack_offset);
@@ -471,10 +484,10 @@ impl Cpu {
     pub fn store(&mut self, mode: AddressMode, value: &Word) {
         match mode {
             AddressMode::Absolute => {
-                self.pc += 1;
+                self.incr_pc();
                 let addr_lo = self.bus.read_byte(self.pbr_pc());
 
-                self.pc += 1;
+                self.incr_pc();
                 let addr_hi = self.bus.read_byte(self.pbr_pc());
 
                 let addr = Self::make_word(addr_lo, addr_hi) as u32;
@@ -489,10 +502,10 @@ impl Cpu {
             }
 
             AddressMode::AbsoluteIndexedX => {
-                self.pc += 1;
+                self.incr_pc();
                 let addr_lo = self.bus.read_byte(self.pbr_pc());
 
-                self.pc += 1;
+                self.incr_pc();
                 let addr_hi = self.bus.read_byte(self.pbr_pc());
 
                 let addr = (Self::make_word(addr_lo, addr_hi) + self.reg_x) as u32;
@@ -507,10 +520,10 @@ impl Cpu {
             }
 
             AddressMode::AbsoluteIndexedY => {
-                self.pc += 1;
+                self.incr_pc();
                 let addr_lo = self.bus.read_byte(self.pbr_pc());
 
-                self.pc += 1;
+                self.incr_pc();
                 let addr_hi = self.bus.read_byte(self.pbr_pc());
 
                 let addr = (Self::make_word(addr_lo, addr_hi) + self.reg_y) as u32;
@@ -526,16 +539,16 @@ impl Cpu {
 
             AddressMode::Immediate => {
                 // data_lo
-                self.pc += 1;
+                self.incr_pc();
                 self.bus.write_byte(self.pbr_pc(), value.lo());
 
                 // data_hi
-                self.pc += 1;
+                self.incr_pc();
                 self.bus.write_byte(self.pbr_pc(), value.hi());
             }
 
             AddressMode::ZeroPage => {
-                self.pc += 1;
+                self.incr_pc();
                 let direct_offset = self.bus.read_byte(self.pbr_pc()) as u32;
 
                 // data_lo
@@ -548,7 +561,7 @@ impl Cpu {
             }
 
             AddressMode::ZeroPageX => {
-                self.pc += 1;
+                self.incr_pc();
                 let direct_offset = self.bus.read_byte(self.pbr_pc()) as u32;
 
                 // data_lo
@@ -563,7 +576,7 @@ impl Cpu {
             }
 
             AddressMode::ZeroPageY => {
-                self.pc += 1;
+                self.incr_pc();
                 let direct_offset = self.bus.read_byte(self.pbr_pc()) as u32;
 
                 // data_lo
@@ -578,7 +591,7 @@ impl Cpu {
             }
 
             AddressMode::ZeroPageDirectIndirectIndexedY => {
-                self.pc += 1;
+                self.incr_pc();
                 let direct_offset = self.bus.read_dword(self.pbr_pc());
 
                 let addr_lo = self.bus.read_byte(self.reg_d as u32 + direct_offset);
@@ -595,7 +608,7 @@ impl Cpu {
             }
 
             AddressMode::ZeroPageDirectIndexedIndirectX => {
-                self.pc += 1;
+                self.incr_pc();
                 let direct_offset = self.bus.read_dword(self.pbr_pc());
 
                 let addr_lo = self
@@ -617,13 +630,13 @@ impl Cpu {
             }
 
             AddressMode::AbsoluteLong => {
-                self.pc += 1;
+                self.incr_pc();
                 let addr_lo = self.bus.read_byte(self.pbr_pc());
 
-                self.pc += 1;
+                self.incr_pc();
                 let addr_hi = self.bus.read_byte(self.pbr_pc());
 
-                self.pc += 1;
+                self.incr_pc();
                 let addr_bank = self.bus.read_dword(self.pbr_pc());
 
                 let addr = Self::make_word(addr_lo, addr_hi) as u32;
@@ -637,13 +650,13 @@ impl Cpu {
             }
 
             AddressMode::AbsoluteLongIndexedX => {
-                self.pc += 1;
+                self.incr_pc();
                 let addr_lo = self.bus.read_byte(self.pbr_pc());
 
-                self.pc += 1;
+                self.incr_pc();
                 let addr_hi = self.bus.read_byte(self.pbr_pc());
 
-                self.pc += 1;
+                self.incr_pc();
                 let addr_bank = self.bus.read_dword(self.pbr_pc());
 
                 let addr = (Self::make_word(addr_lo, addr_hi) + self.reg_x) as u32;
@@ -657,7 +670,7 @@ impl Cpu {
             }
 
             AddressMode::DirectIndirect => {
-                self.pc += 1;
+                self.incr_pc();
                 let direct_offset = self.bus.read_dword(self.pbr_pc());
 
                 let addr_lo = self.bus.read_byte(self.reg_d as u32 + direct_offset);
@@ -674,7 +687,7 @@ impl Cpu {
             }
 
             AddressMode::DirectIndirectLong => {
-                self.pc += 1;
+                self.incr_pc();
                 let direct_offset = self.bus.read_dword(self.pbr_pc());
 
                 let addr_lo = self.bus.read_byte(self.reg_d as u32 + direct_offset);
@@ -692,7 +705,7 @@ impl Cpu {
             }
 
             AddressMode::ZeroPageDirectIndirectIndexedLong => {
-                self.pc += 1;
+                self.incr_pc();
                 let direct_offset = self.bus.read_dword(self.pbr_pc());
 
                 let addr_lo = self.bus.read_byte(self.reg_d as u32 + direct_offset);
@@ -710,7 +723,7 @@ impl Cpu {
             }
 
             AddressMode::StackRelative => {
-                self.pc += 1;
+                self.incr_pc();
                 let stack_offset = self.bus.read_dword(self.pbr_pc());
 
                 // data_lo
@@ -721,7 +734,7 @@ impl Cpu {
             }
 
             AddressMode::StackRelativeIndirectIndexedY => {
-                self.pc += 1;
+                self.incr_pc();
                 let stack_offset = self.bus.read_dword(self.pbr_pc());
 
                 let addr_lo = self.bus.read_byte(self.sp + stack_offset);

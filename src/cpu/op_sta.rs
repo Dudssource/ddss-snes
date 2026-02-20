@@ -1,9 +1,12 @@
+use log::debug;
+
 use crate::cpu::alu::Cpu;
 use crate::cpu::alu::*;
 
 impl Cpu {
     pub fn op_sta(&mut self, opcode: u8) {
         let value = &self.reg_a.clone();
+        debug!("[0x{:X}] STA : A=0x{:X}", opcode, value.data);
         match opcode {
             0x85 => self.store(AddressMode::ZeroPage, value),
             0x95 => self.store(AddressMode::ZeroPageX, value),

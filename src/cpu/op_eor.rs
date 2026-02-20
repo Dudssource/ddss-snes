@@ -1,3 +1,5 @@
+use log::debug;
+
 use crate::cpu::alu::{AddressMode, Cpu};
 
 impl Cpu {
@@ -23,5 +25,10 @@ impl Cpu {
 
         self.reg_a.data = self.reg_a.data ^ value;
         self.flag_nz(self.reg_a.data);
+
+        debug!(
+            "[0x{:X}] EOR : A=0x{:X} FLAGS={:b}",
+            opcode, self.reg_a.data, self.reg_p
+        );
     }
 }

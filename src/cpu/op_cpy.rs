@@ -1,3 +1,5 @@
+use log::debug;
+
 use crate::cpu::alu::{AddressMode, Cpu};
 
 impl Cpu {
@@ -14,5 +16,10 @@ impl Cpu {
 
         // carry is clear when borrow is required; that is, if the register is less than the operand
         self.flag_c(self.reg_y >= operand);
+
+        debug!(
+            "[0x{:X}] CPY : OPERAND=0x{:X} FLAGS={:b}",
+            opcode, operand, self.reg_p
+        );
     }
 }
