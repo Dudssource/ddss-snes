@@ -4,7 +4,6 @@ use crate::cpu::alu::Cpu;
 
 impl Cpu {
     pub fn op_phb(&mut self,opcode:u8) {
-        // self.incr_pc();
         let oldsp=self.sp;
         self.bus.write_byte(self.sp, self.reg_db);
         self.sp -= 1;

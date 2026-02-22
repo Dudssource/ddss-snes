@@ -5,23 +5,24 @@ use crate::cpu::alu::*;
 
 impl Cpu {
     pub fn op_lda(&mut self, opcode: u8) {
+        let sixteen_bits_mode = (self.reg_p & S_ACCUMULATOR_MEMORY) == 0;
         let oldpc = self.pc;
         self.reg_a.data = match opcode {
-            0xA9 => self.fetch(AddressMode::Immediate),
-            0xA5 => self.fetch(AddressMode::ZeroPage),
-            0xB5 => self.fetch(AddressMode::ZeroPageX),
-            0xAD => self.fetch(AddressMode::Absolute),
-            0xBD => self.fetch(AddressMode::AbsoluteIndexedX),
-            0xB9 => self.fetch(AddressMode::AbsoluteIndexedY),
-            0xA1 => self.fetch(AddressMode::ZeroPageDirectIndexedIndirectX),
-            0xB1 => self.fetch(AddressMode::ZeroPageDirectIndirectIndexedY),
-            0xAF => self.fetch(AddressMode::AbsoluteLong),
-            0xBF => self.fetch(AddressMode::AbsoluteLongIndexedX),
-            0xB2 => self.fetch(AddressMode::DirectIndirect),
-            0xA7 => self.fetch(AddressMode::DirectIndirectLong),
-            0xB7 => self.fetch(AddressMode::ZeroPageDirectIndirectIndexedLong),
-            0xA3 => self.fetch(AddressMode::StackRelative),
-            0xB3 => self.fetch(AddressMode::StackRelativeIndirectIndexedY),
+            0xA9 => self.fetch(AddressMode::Immediate, sixteen_bits_mode),
+            0xA5 => self.fetch(AddressMode::ZeroPage, sixteen_bits_mode),
+            0xB5 => self.fetch(AddressMode::ZeroPageX, sixteen_bits_mode),
+            0xAD => self.fetch(AddressMode::Absolute, sixteen_bits_mode),
+            0xBD => self.fetch(AddressMode::AbsoluteIndexedX, sixteen_bits_mode),
+            0xB9 => self.fetch(AddressMode::AbsoluteIndexedY, sixteen_bits_mode),
+            0xA1 => self.fetch(AddressMode::ZeroPageDirectIndexedIndirectX, sixteen_bits_mode),
+            0xB1 => self.fetch(AddressMode::ZeroPageDirectIndirectIndexedY, sixteen_bits_mode),
+            0xAF => self.fetch(AddressMode::AbsoluteLong, sixteen_bits_mode),
+            0xBF => self.fetch(AddressMode::AbsoluteLongIndexedX, sixteen_bits_mode),
+            0xB2 => self.fetch(AddressMode::DirectIndirect, sixteen_bits_mode),
+            0xA7 => self.fetch(AddressMode::DirectIndirectLong, sixteen_bits_mode),
+            0xB7 => self.fetch(AddressMode::ZeroPageDirectIndirectIndexedLong, sixteen_bits_mode),
+            0xA3 => self.fetch(AddressMode::StackRelative, sixteen_bits_mode),
+            0xB3 => self.fetch(AddressMode::StackRelativeIndirectIndexedY, sixteen_bits_mode),
             _ => panic!("invalid opcode {}", opcode),
         };
 

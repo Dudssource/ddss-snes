@@ -9,9 +9,9 @@ impl Cpu {
         if self.emulation {
             mask &= 0xCF;
         }
-        self.reg_p = self.reg_p | mask;
+        self.reg_p |= mask;
         debug!(
-            "[0x{:X}:0x{:X}] SEP #${:X} : FLAGS={:b}",
+            "[0x{:X}:0x{:X}] SEP #${:X} : FLAGS={:08b}",
             oldpc, opcode, mask, self.reg_p
         );
     }

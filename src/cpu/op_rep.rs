@@ -11,7 +11,7 @@ impl Cpu {
         }
         self.reg_p = self.reg_p & (!mask);
         debug!(
-            "[0x{:X}:0x{:X}] REP : MASK={:X} FLAGS={:b}",
+            "[0x{:X}:0x{:X}] REP : MASK={:X} FLAGS={:08b}",
             oldpc, opcode, mask, self.reg_p
         );
     }

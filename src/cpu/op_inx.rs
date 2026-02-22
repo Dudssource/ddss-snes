@@ -7,8 +7,8 @@ impl Cpu {
         self.reg_x += 1;
         self.flag_nz(self.reg_x);
         debug!(
-            "[0x{:X}] INX : X=0x{:X} FLAGS={:b}",
-            opcode, self.reg_x, self.reg_p
+            "[0x{:X}:0x{:X}] INX : X=0x{:X} FLAGS={:b}",
+            self.pc, opcode, self.reg_x, self.reg_p
         );
     }
 }

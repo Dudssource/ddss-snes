@@ -5,9 +5,9 @@ use crate::cpu::alu::{AddressMode, Cpu};
 impl Cpu {
     pub fn op_cpx(&mut self, opcode: u8) {
         let operand = match opcode {
-            0xE0 => self.fetch(AddressMode::Immediate),
-            0xE4 => self.fetch(AddressMode::ZeroPage),
-            0xEC => self.fetch(AddressMode::Absolute),
+            0xE0 => self.fetch(AddressMode::Immediate, true),
+            0xE4 => self.fetch(AddressMode::ZeroPage, true),
+            0xEC => self.fetch(AddressMode::Absolute, true),
             _ => panic!("invalid opcode {}", opcode),
         };
 

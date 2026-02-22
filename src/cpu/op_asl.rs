@@ -6,10 +6,10 @@ impl Cpu {
     pub fn op_asl(&mut self, opcode: u8) {
         let mut value = match opcode {
             0x0A => self.reg_a.data,
-            0x06 => self.fetch(crate::cpu::alu::AddressMode::ZeroPage),
-            0x16 => self.fetch(crate::cpu::alu::AddressMode::ZeroPageX),
-            0x0E => self.fetch(crate::cpu::alu::AddressMode::Absolute),
-            0x1E => self.fetch(crate::cpu::alu::AddressMode::AbsoluteIndexedX),
+            0x06 => self.fetch(crate::cpu::alu::AddressMode::ZeroPage, true),
+            0x16 => self.fetch(crate::cpu::alu::AddressMode::ZeroPageX, true),
+            0x0E => self.fetch(crate::cpu::alu::AddressMode::Absolute, true),
+            0x1E => self.fetch(crate::cpu::alu::AddressMode::AbsoluteIndexedX, true),
             _ => panic!("invalid opcode {}", opcode),
         };
 

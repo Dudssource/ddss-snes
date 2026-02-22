@@ -1,14 +1,17 @@
 use crate::cpu::{bits::Word, bus::Bus};
 use log::debug;
-use std::fmt;
 
 pub const S_CARRY: u8 = 0x1;
 pub const S_RESULT_ZERO: u8 = 0x1 << 1;
 pub const S_IRQ_DISABLE: u8 = 0x1 << 2;
 pub const S_DECIMAL_MODE: u8 = 0x1 << 3;
-pub const S_BREAK_INSTRUCTION: u8 = 0x1 << 4;
+pub const S_BREAK_INSTRUCTION: u8 = 0x1 << 4; // accumulator 8 or 16 bits
+pub const S_INDEX_REGISTERS: u8 = S_BREAK_INSTRUCTION; // x-y index registers 8 or 16 bits
+pub const S_ACCUMULATOR_MEMORY: u8 = 0x1 << 5;
 pub const S_OVERFLOW: u8 = 0x1 << 6;
 pub const S_NEGATIVE: u8 = 0x1 << 7;
+
+pub const STACK_POINTER_START: u32 = 0x1FF;
 
 pub struct Cpu {
     pub bus: Box<Bus>,
@@ -48,7 +51,7 @@ impl Cpu {
     pub fn new(bus: Box<Bus>) -> Self {
         Self {
             bus: bus,
-            sp: 0x1FF,
+            sp: STACK_POINTER_START,
             reg_a: Word::new(0, 0),
             reg_x: 0x0,
             reg_y: 0x0,
@@ -225,12 +228,24 @@ impl Cpu {
             // TXS Transfer index X to stack pointer
             0x9A => self.op_txs(opcode),
 
+            // STZ Store zero in memory
+            0x9C | 0x9E | 0x64 | 0x74 => self.op_stz(opcode),
+
+            // RTS Return from subroutine
+            0x60 => self.op_rts(opcode),
+
+            // STY Store index Y in memory
+            0x84 | 0x94 | 0x8C => self.op_sty(opcode),
+
+            // STX Store index X in memory
+            0x86 | 0x96 | 0x8E => self.op_stx(opcode),
+
             // ERROR
             _ => panic!("invalid opcode 0x{:X} at 0x{:X}", opcode, self.pc),
         }
     }
 
-    pub fn fetch(&mut self, mode: AddressMode) -> u16 {
+    pub fn fetch(&mut self, mode: AddressMode, sixteen_bits_mode: bool) -> u16 {
         debug!("fetch {:?}", mode);
 
         match mode {
@@ -244,7 +259,11 @@ impl Cpu {
                 let addr = Self::make_word(addr_lo, addr_hi) as u32;
 
                 let data_lo = self.bus.read_byte(((self.reg_db as u32) << 16) | addr);
-                let data_hi = self.bus.read_byte(((self.reg_db as u32) << 16) | addr + 1);
+                let mut data_hi = 0u8;
+
+                if sixteen_bits_mode {
+                    data_hi = self.bus.read_byte(((self.reg_db as u32) << 16) | addr + 1);
+                }
 
                 Self::make_word(data_lo, data_hi)
             }
@@ -259,9 +278,13 @@ impl Cpu {
                 let addr = (Self::make_word(addr_lo, addr_hi) + self.reg_x) as u32;
 
                 let data_lo = self.bus.read_byte(((self.reg_db as u32) << 16) | addr);
-                let data_hi = self
-                    .bus
-                    .read_byte(((self.reg_db as u32) << 16) | (addr + 1));
+                let mut data_hi = 0u8;
+
+                if sixteen_bits_mode {
+                    data_hi = self
+                        .bus
+                        .read_byte(((self.reg_db as u32) << 16) | (addr + 1));
+                }
 
                 Self::make_word(data_lo, data_hi)
             }
@@ -276,9 +299,13 @@ impl Cpu {
                 let addr = (Self::make_word(addr_lo, addr_hi) + self.reg_y) as u32;
 
                 let data_lo = self.bus.read_byte(((self.reg_db as u32) << 16) | addr);
-                let data_hi = self
-                    .bus
-                    .read_byte(((self.reg_db as u32) << 16) | (addr + 1));
+                let mut data_hi = 0u8;
+
+                if sixteen_bits_mode {
+                    data_hi = self
+                        .bus
+                        .read_byte(((self.reg_db as u32) << 16) | (addr + 1));
+                }
 
                 Self::make_word(data_lo, data_hi)
             }
@@ -286,9 +313,12 @@ impl Cpu {
             AddressMode::Immediate => {
                 self.incr_pc();
                 let data_lo = self.bus.read_byte(self.pbr_pc());
+                let mut data_hi = 0u8;
 
-                self.incr_pc();
-                let data_hi = self.bus.read_byte(self.pbr_pc());
+                if sixteen_bits_mode {
+                    self.incr_pc();
+                    data_hi = self.bus.read_byte(self.pbr_pc());
+                }
 
                 debug!("[0x{:X}] fetch {:?}", self.pc, mode);
 
@@ -300,7 +330,11 @@ impl Cpu {
                 let direct_offset = self.bus.read_byte(self.pbr_pc()) as u32;
 
                 let data_lo = self.bus.read_byte(self.reg_d as u32 + direct_offset);
-                let data_hi = self.bus.read_byte(self.reg_d as u32 + direct_offset + 1);
+                let mut data_hi = 0u8;
+
+                if sixteen_bits_mode {
+                    data_hi = self.bus.read_byte(self.reg_d as u32 + direct_offset + 1);
+                }
 
                 Self::make_word(data_lo, data_hi)
             }
@@ -312,9 +346,13 @@ impl Cpu {
                 let data_lo = self
                     .bus
                     .read_byte((self.reg_d + self.reg_x) as u32 + direct_offset);
-                let data_hi = self
-                    .bus
-                    .read_byte((self.reg_d + self.reg_x) as u32 + direct_offset + 1);
+                let mut data_hi = 0u8;
+
+                if sixteen_bits_mode {
+                    data_hi = self
+                        .bus
+                        .read_byte((self.reg_d + self.reg_x) as u32 + direct_offset + 1);
+                }
 
                 Self::make_word(data_lo, data_hi)
             }
@@ -326,9 +364,13 @@ impl Cpu {
                 let data_lo = self
                     .bus
                     .read_byte((self.reg_d + self.reg_y) as u32 + direct_offset);
-                let data_hi = self
-                    .bus
-                    .read_byte((self.reg_d + self.reg_y) as u32 + direct_offset + 1);
+                let mut data_hi = 0u8;
+
+                if sixteen_bits_mode {
+                    data_hi = self
+                        .bus
+                        .read_byte((self.reg_d + self.reg_y) as u32 + direct_offset + 1);
+                }
 
                 Self::make_word(data_lo, data_hi)
             }
@@ -342,9 +384,13 @@ impl Cpu {
                 let addr = (Self::make_word(addr_lo, addr_hi) + self.reg_y) as u32;
 
                 let data_lo = self.bus.read_byte(((self.reg_db as u32) << 16) | addr);
-                let data_hi = self
-                    .bus
-                    .read_byte(((self.reg_db as u32) << 16) | (addr + 1));
+                let mut data_hi = 0u8;
+
+                if sixteen_bits_mode {
+                    data_hi = self
+                        .bus
+                        .read_byte(((self.reg_db as u32) << 16) | (addr + 1));
+                }
 
                 Self::make_word(data_lo, data_hi)
             }
@@ -363,9 +409,13 @@ impl Cpu {
                 let addr = Self::make_word(addr_lo, addr_hi) as u32;
 
                 let data_lo = self.bus.read_byte(((self.reg_db as u32) << 16) | addr);
-                let data_hi = self
-                    .bus
-                    .read_byte(((self.reg_db as u32) << 16) | (addr + 1));
+                let mut data_hi = 0u8;
+
+                if sixteen_bits_mode {
+                    data_hi = self
+                        .bus
+                        .read_byte(((self.reg_db as u32) << 16) | (addr + 1));
+                }
 
                 Self::make_word(data_lo, data_hi)
             }
@@ -383,7 +433,11 @@ impl Cpu {
                 let addr = Self::make_word(addr_lo, addr_hi) as u32;
 
                 let data_lo = self.bus.read_byte((addr_bank << 16) | addr);
-                let data_hi = self.bus.read_byte((addr_bank << 16) | (addr + 1));
+                let mut data_hi = 0u8;
+
+                if sixteen_bits_mode {
+                    data_hi = self.bus.read_byte((addr_bank << 16) | (addr + 1));
+                }
 
                 Self::make_word(data_lo, data_hi)
             }
@@ -401,7 +455,11 @@ impl Cpu {
                 let addr = (Self::make_word(addr_lo, addr_hi) + self.reg_x) as u32;
 
                 let data_lo = self.bus.read_byte((addr_bank << 16) | addr);
-                let data_hi = self.bus.read_byte((addr_bank << 16) | (addr + 1));
+                let mut data_hi = 0u8;
+
+                if sixteen_bits_mode {
+                    data_hi = self.bus.read_byte((addr_bank << 16) | (addr + 1));
+                }
 
                 Self::make_word(data_lo, data_hi)
             }
@@ -415,9 +473,13 @@ impl Cpu {
                 let addr = Self::make_word(addr_lo, addr_hi) as u32;
 
                 let data_lo = self.bus.read_byte(((self.reg_db as u32) << 16) | addr);
-                let data_hi = self
-                    .bus
-                    .read_byte(((self.reg_db as u32) << 16) | (addr + 1));
+                let mut data_hi = 0u8;
+
+                if sixteen_bits_mode {
+                    data_hi = self
+                        .bus
+                        .read_byte(((self.reg_db as u32) << 16) | (addr + 1));
+                }
 
                 Self::make_word(data_lo, data_hi)
             }
@@ -433,7 +495,11 @@ impl Cpu {
                 let addr = Self::make_word(addr_lo, addr_hi) as u32;
 
                 let data_lo = self.bus.read_byte((addr_bank << 16) | addr);
-                let data_hi = self.bus.read_byte((addr_bank << 16) | (addr + 1));
+                let mut data_hi = 0u8;
+
+                if sixteen_bits_mode {
+                    data_hi = self.bus.read_byte((addr_bank << 16) | (addr + 1));
+                }
 
                 Self::make_word(data_lo, data_hi)
             }
@@ -449,7 +515,11 @@ impl Cpu {
                 let addr = (Self::make_word(addr_lo, addr_hi) + self.reg_y) as u32;
 
                 let data_lo = self.bus.read_byte((addr_bank << 16) | addr);
-                let data_hi = self.bus.read_byte((addr_bank << 16) | (addr + 1));
+                let mut data_hi = 0u8;
+
+                if sixteen_bits_mode {
+                    data_hi = self.bus.read_byte((addr_bank << 16) | (addr + 1));
+                }
 
                 Self::make_word(data_lo, data_hi)
             }
@@ -459,7 +529,11 @@ impl Cpu {
                 let stack_offset = self.bus.read_dword(self.pbr_pc());
 
                 let data_lo = self.bus.read_byte(self.sp + stack_offset);
-                let data_hi = self.bus.read_byte(self.sp + stack_offset + 1);
+                let mut data_hi = 0u8;
+
+                if sixteen_bits_mode {
+                    data_hi = self.bus.read_byte(self.sp + stack_offset + 1);
+                }
 
                 Self::make_word(data_lo, data_hi)
             }
@@ -474,14 +548,18 @@ impl Cpu {
                 let addr = (Self::make_word(addr_lo, addr_hi) + self.reg_y) as u32;
 
                 let data_lo = self.bus.read_byte(addr);
-                let data_hi = self.bus.read_byte(addr + 1);
+                let mut data_hi = 0u8;
+
+                if sixteen_bits_mode {
+                    data_hi = self.bus.read_byte(addr + 1);
+                }
 
                 Self::make_word(data_lo, data_hi)
             }
         }
     }
 
-    pub fn store(&mut self, mode: AddressMode, value: &Word) {
+    pub fn store(&mut self, mode: AddressMode, value: &Word, sixteen_bits_mode: bool) {
         match mode {
             AddressMode::Absolute => {
                 self.incr_pc();
@@ -496,9 +574,11 @@ impl Cpu {
                 self.bus
                     .write_byte(((self.reg_db as u32) << 16) | addr, value.lo());
 
-                // data_hi
-                self.bus
-                    .write_byte(((self.reg_db as u32) << 16) | addr + 1, value.hi());
+                if sixteen_bits_mode {
+                    // data_hi
+                    self.bus
+                        .write_byte(((self.reg_db as u32) << 16) | addr + 1, value.hi());
+                }
             }
 
             AddressMode::AbsoluteIndexedX => {
@@ -514,9 +594,11 @@ impl Cpu {
                 self.bus
                     .write_byte(((self.reg_db as u32) << 16) | addr, value.lo());
 
-                // data_hi
-                self.bus
-                    .write_byte(((self.reg_db as u32) << 16) | (addr + 1), value.hi());
+                if sixteen_bits_mode {
+                    // data_hi
+                    self.bus
+                        .write_byte(((self.reg_db as u32) << 16) | (addr + 1), value.hi());
+                }
             }
 
             AddressMode::AbsoluteIndexedY => {
@@ -532,9 +614,11 @@ impl Cpu {
                 self.bus
                     .write_byte(((self.reg_db as u32) << 16) | addr, value.lo());
 
-                // data_hi
-                self.bus
-                    .write_byte(((self.reg_db as u32) << 16) | (addr + 1), value.hi());
+                if sixteen_bits_mode {
+                    // data_hi
+                    self.bus
+                        .write_byte(((self.reg_db as u32) << 16) | (addr + 1), value.hi());
+                }
             }
 
             AddressMode::Immediate => {
@@ -542,9 +626,11 @@ impl Cpu {
                 self.incr_pc();
                 self.bus.write_byte(self.pbr_pc(), value.lo());
 
-                // data_hi
-                self.incr_pc();
-                self.bus.write_byte(self.pbr_pc(), value.hi());
+                if sixteen_bits_mode {
+                    // data_hi
+                    self.incr_pc();
+                    self.bus.write_byte(self.pbr_pc(), value.hi());
+                }
             }
 
             AddressMode::ZeroPage => {
@@ -555,9 +641,11 @@ impl Cpu {
                 self.bus
                     .write_byte(self.reg_d as u32 + direct_offset, value.lo());
 
-                // data_hi
-                self.bus
-                    .write_byte(self.reg_d as u32 + direct_offset + 1, value.hi());
+                if sixteen_bits_mode {
+                    // data_hi
+                    self.bus
+                        .write_byte(self.reg_d as u32 + direct_offset + 1, value.hi());
+                }
             }
 
             AddressMode::ZeroPageX => {
@@ -568,11 +656,13 @@ impl Cpu {
                 self.bus
                     .write_byte((self.reg_d + self.reg_x) as u32 + direct_offset, value.lo());
 
-                // data_hi
-                self.bus.write_byte(
-                    (self.reg_d + self.reg_x) as u32 + direct_offset + 1,
-                    value.hi(),
-                );
+                if sixteen_bits_mode {
+                    // data_hi
+                    self.bus.write_byte(
+                        (self.reg_d + self.reg_x) as u32 + direct_offset + 1,
+                        value.hi(),
+                    );
+                }
             }
 
             AddressMode::ZeroPageY => {
@@ -583,11 +673,13 @@ impl Cpu {
                 self.bus
                     .write_byte((self.reg_d + self.reg_y) as u32 + direct_offset, value.lo());
 
-                // data_hi
-                self.bus.write_byte(
-                    (self.reg_d + self.reg_y) as u32 + direct_offset + 1,
-                    value.hi(),
-                );
+                if sixteen_bits_mode {
+                    // data_hi
+                    self.bus.write_byte(
+                        (self.reg_d + self.reg_y) as u32 + direct_offset + 1,
+                        value.hi(),
+                    );
+                }
             }
 
             AddressMode::ZeroPageDirectIndirectIndexedY => {
@@ -602,9 +694,11 @@ impl Cpu {
                 self.bus
                     .write_byte(((self.reg_db as u32) << 16) | addr, value.lo());
 
-                // data_hi
-                self.bus
-                    .write_byte(((self.reg_db as u32) << 16) | (addr + 1), value.hi());
+                if sixteen_bits_mode {
+                    // data_hi
+                    self.bus
+                        .write_byte(((self.reg_db as u32) << 16) | (addr + 1), value.hi());
+                }
             }
 
             AddressMode::ZeroPageDirectIndexedIndirectX => {
@@ -624,9 +718,11 @@ impl Cpu {
                 self.bus
                     .write_byte(((self.reg_db as u32) << 16) | addr, value.lo());
 
-                // data_hi
-                self.bus
-                    .write_byte(((self.reg_db as u32) << 16) | (addr + 1), value.hi());
+                if sixteen_bits_mode {
+                    // data_hi
+                    self.bus
+                        .write_byte(((self.reg_db as u32) << 16) | (addr + 1), value.hi());
+                }
             }
 
             AddressMode::AbsoluteLong => {
@@ -644,9 +740,11 @@ impl Cpu {
                 // data_lo
                 self.bus.write_byte((addr_bank << 16) | addr, value.lo());
 
-                // data_hi
-                self.bus
-                    .write_byte((addr_bank << 16) | (addr + 1), value.hi());
+                if sixteen_bits_mode {
+                    // data_hi
+                    self.bus
+                        .write_byte((addr_bank << 16) | (addr + 1), value.hi());
+                }
             }
 
             AddressMode::AbsoluteLongIndexedX => {
@@ -664,9 +762,11 @@ impl Cpu {
                 // data_lo
                 self.bus.write_byte((addr_bank << 16) | addr, value.lo());
 
-                // data_hi
-                self.bus
-                    .write_byte((addr_bank << 16) | (addr + 1), value.hi());
+                if sixteen_bits_mode {
+                    // data_hi
+                    self.bus
+                        .write_byte((addr_bank << 16) | (addr + 1), value.hi());
+                }
             }
 
             AddressMode::DirectIndirect => {
@@ -681,9 +781,11 @@ impl Cpu {
                 self.bus
                     .write_byte(((self.reg_db as u32) << 16) | addr, value.lo());
 
-                // data_hi
-                self.bus
-                    .write_byte(((self.reg_db as u32) << 16) | (addr + 1), value.hi());
+                if sixteen_bits_mode {
+                    // data_hi
+                    self.bus
+                        .write_byte(((self.reg_db as u32) << 16) | (addr + 1), value.hi());
+                }
             }
 
             AddressMode::DirectIndirectLong => {
@@ -699,9 +801,11 @@ impl Cpu {
                 // data_lo
                 self.bus.write_byte((addr_bank << 16) | addr, value.lo());
 
-                // data_hi
-                self.bus
-                    .write_byte((addr_bank << 16) | (addr + 1), value.hi());
+                if sixteen_bits_mode {
+                    // data_hi
+                    self.bus
+                        .write_byte((addr_bank << 16) | (addr + 1), value.hi());
+                }
             }
 
             AddressMode::ZeroPageDirectIndirectIndexedLong => {
@@ -717,9 +821,11 @@ impl Cpu {
                 // data_lo
                 self.bus.write_byte((addr_bank << 16) | addr, value.lo());
 
-                // data_hi
-                self.bus
-                    .write_byte((addr_bank << 16) | (addr + 1), value.hi());
+                if sixteen_bits_mode {
+                    // data_hi
+                    self.bus
+                        .write_byte((addr_bank << 16) | (addr + 1), value.hi());
+                }
             }
 
             AddressMode::StackRelative => {
@@ -729,8 +835,10 @@ impl Cpu {
                 // data_lo
                 self.bus.write_byte(self.sp + stack_offset, value.lo());
 
-                // data_hi
-                self.bus.write_byte(self.sp + stack_offset + 1, value.hi());
+                if sixteen_bits_mode {
+                    // data_hi
+                    self.bus.write_byte(self.sp + stack_offset + 1, value.hi());
+                }
             }
 
             AddressMode::StackRelativeIndirectIndexedY => {
@@ -745,8 +853,10 @@ impl Cpu {
                 // data_lo
                 self.bus.write_byte(addr, value.lo());
 
-                // data_hi
-                self.bus.write_byte(addr + 1, value.hi());
+                if sixteen_bits_mode {
+                    // data_hi
+                    self.bus.write_byte(addr + 1, value.hi());
+                }
             }
         }
     }
@@ -803,7 +913,7 @@ mod tests {
         let mut c = Cpu::new(Box::new(b));
         c.reg_db = 0x12;
         c.pc = 0xFF;
-        let result = c.fetch(AddressMode::Absolute);
+        let result = c.fetch(AddressMode::Absolute, true);
         assert_eq!(result, 0x201);
     }
 }

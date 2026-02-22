@@ -6,7 +6,6 @@ use crate::cpu::bits::Word;
 impl Cpu {
     pub fn op_phd(&mut self, opcode: u8) {
         let value = Word { data: self.reg_d };
-        // self.incr_pc();
         let oldsp = self.sp;
         self.bus.write_byte(self.sp, value.hi());
         self.sp -= 1;
