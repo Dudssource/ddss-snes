@@ -240,6 +240,37 @@ impl Cpu {
             // STX Store index X in memory
             0x86 | 0x96 | 0x8E => self.op_stx(opcode),
 
+            // ORA "OR" memory with accumulator
+            0x09 | 0x05 | 0x15 | 0x0D | 0x1D | 0x19 | 0x01 | 0x11 | 0x0F | 0x1F | 0x12 | 0x07
+            | 0x17 | 0x03 | 0x13 => self.op_ora(opcode),
+
+            // PLA Pull accumulator from stack
+            0x68 => self.op_pla(opcode),
+
+            // PLP Pull processor status from stack
+            0x28 => self.op_plp(opcode),
+
+            // PLB Pull Data Bank Register from Stack
+            0xAB => self.op_plb(opcode),
+
+            // PLD Pull Direct Register from Stack
+            0x2B => self.op_pld(opcode),
+
+            // PLX Pull Index X from Stack
+            0xFA => self.op_plx(opcode),
+
+            // PLY Pull Index Y from Stack
+            0x7A => self.op_ply(opcode),
+
+            // PEA Push Effective Absolute Address on Stack (or Push Immediate Data on Stack)
+            0xF4 => self.op_pea(opcode),
+
+            // PEI Push Effective Indirect Address on Stack
+            0xD4 => self.op_pei(opcode),
+
+            // PER Push Effective Program Counter Relative Address on Stack
+            0x62 => self.op_per(opcode),
+
             // ERROR
             _ => panic!("invalid opcode 0x{:X} at 0x{:X}", opcode, self.pc),
         }
