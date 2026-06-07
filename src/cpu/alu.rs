@@ -271,6 +271,9 @@ impl Cpu {
             // PER Push Effective Program Counter Relative Address on Stack
             0x62 => self.op_per(opcode),
 
+            // ROL Rotate one bit left (memory or accumulator)
+            0x2A | 0x26 | 0x36 | 0x2E | 0x3E => self.op_rol(opcode),
+
             // ERROR
             _ => panic!("invalid opcode 0x{:X} at 0x{:X}", opcode, self.pc),
         }

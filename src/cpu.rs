@@ -46,6 +46,7 @@ mod op_plp;
 mod op_plx;
 mod op_ply;
 mod op_rep;
+mod op_rol;
 mod op_rts;
 mod op_sbc;
 mod op_sec;
