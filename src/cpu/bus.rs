@@ -7,7 +7,7 @@ pub struct Bus {
 impl Bus {
     pub fn new() -> Self {
         Self {
-            work_ram: vec![0u8; i32::MAX as usize].into_boxed_slice(),
+            work_ram: vec![0u8; 0xFFFFFF as usize].into_boxed_slice(),
         }
     }
 
