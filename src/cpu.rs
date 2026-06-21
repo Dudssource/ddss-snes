@@ -59,5 +59,8 @@ mod op_sta;
 mod op_stx;
 mod op_sty;
 mod op_stz;
+mod op_tax;
+mod op_tay;
+mod op_tsx;
 mod op_txs;
 mod op_xce;
