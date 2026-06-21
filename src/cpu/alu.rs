@@ -274,6 +274,12 @@ impl Cpu {
             // ROL Rotate one bit left (memory or accumulator)
             0x2A | 0x26 | 0x36 | 0x2E | 0x3E => self.op_rol(opcode),
 
+            // ROR Rotate one bit right (memory or accumulator)
+            0x6A | 0x66 | 0x76 | 0x6E | 0x7E => self.op_ror(opcode),
+
+            // RTI Return from interruptp
+            0x40 => self.op_rti(opcode),
+
             // ERROR
             _ => panic!("invalid opcode 0x{:X} at 0x{:X}", opcode, self.pc),
         }
