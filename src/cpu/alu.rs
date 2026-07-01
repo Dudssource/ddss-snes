@@ -298,6 +298,15 @@ impl Cpu {
             // TYA Transfer index Y to accumulator
             0x98 => self.op_tya(opcode),
 
+            // TCD Transfer Accumulator to Direct Register
+            0x5B => self.op_tcd(opcode),
+
+            // TCS Transfer Accumulator to Stack Pointer Register
+            0x1B => self.op_tcs(opcode),
+
+            // TDC Transfer Direct Register to Accumulator
+            0x7B => self.op_tdc(opcode),
+
             // ERROR
             _ => panic!("invalid opcode 0x{:X} at 0x{:X}", opcode, self.pc),
         }
