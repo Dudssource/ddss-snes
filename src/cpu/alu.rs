@@ -234,6 +234,9 @@ impl Cpu {
             // RTS Return from subroutine
             0x60 => self.op_rts(opcode),
 
+            // RTL Return from Subroutine Long
+            0x6B => self.op_rtl(opcode),
+
             // STY Store index Y in memory
             0x84 | 0x94 | 0x8C => self.op_sty(opcode),
 
@@ -288,6 +291,12 @@ impl Cpu {
 
             // TSX Transfer stack pointer to index X
             0xBA => self.op_tsx(opcode),
+
+            // TXA Transfer index X to accumulator
+            0x8A => self.op_txa(opcode),
+
+            // TYA Transfer index Y to accumulator
+            0x98 => self.op_tya(opcode),
 
             // ERROR
             _ => panic!("invalid opcode 0x{:X} at 0x{:X}", opcode, self.pc),
